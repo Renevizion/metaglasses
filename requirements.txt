@@ -1,0 +1,14 @@
+# Required for basic usage (no extras)
+# No mandatory third-party runtime dependencies
+
+# Install with BLE support:
+#   pip install metaglasses[ble]
+bleak>=0.21; extra == "ble"
+
+# Install with voice-recognition support:
+#   pip install metaglasses[voice]
+openai-whisper>=20231117; extra == "voice"
+
+# Development
+pytest>=7.4
+pytest-asyncio>=0.23

@@ -1,3 +1,34 @@
+Metadata-Version: 2.4
+Name: metaglasses
+Version: 0.1.0
+Summary: Python SDK for building apps on Ray-Ban Meta Smart Glasses (Generation 2)
+License: MIT
+Project-URL: Homepage, https://github.com/Renevizion/metaglasses
+Project-URL: Issues, https://github.com/Renevizion/metaglasses/issues
+Keywords: meta,ray-ban,smart glasses,wearable,ai,iot
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Hardware
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: ble
+Requires-Dist: bleak>=0.21; extra == "ble"
+Provides-Extra: voice
+Requires-Dist: openai-whisper>=20231117; extra == "voice"
+Provides-Extra: all
+Requires-Dist: metaglasses[ble,voice]; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Dynamic: license-file
+
 # metaglasses
 
 > **Python SDK for building apps on Ray-Ban Meta Smart Glasses (Generation 2)**

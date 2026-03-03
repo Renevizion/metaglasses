@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metaglasses"
+version = "0.1.0"
+description = "Python SDK for building apps on Ray-Ban Meta Smart Glasses (Generation 2)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["meta", "ray-ban", "smart glasses", "wearable", "ai", "iot"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Hardware",
+]
+
+# Core runtime dependencies — all optional at install time so the package can
+# be imported without a live BLE adapter or AI API key.
+dependencies = []
+
+[project.optional-dependencies]
+# Bluetooth LE transport (required to talk to real hardware)
+ble = ["bleak>=0.21"]
+
+# Speech recognition for voice commands
+voice = ["openai-whisper>=20231117"]
+
+# All extras
+all = ["metaglasses[ble,voice]"]
+
+# Development / testing
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.23",
+]
+
+[project.urls]
+Homepage = "https://github.com/Renevizion/metaglasses"
+Issues   = "https://github.com/Renevizion/metaglasses/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["metaglasses*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

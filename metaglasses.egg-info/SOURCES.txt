@@ -1,0 +1,17 @@
+LICENSE
+README.md
+pyproject.toml
+metaglasses/__init__.py
+metaglasses/ai.py
+metaglasses/glasses.py
+metaglasses/media.py
+metaglasses/voice.py
+metaglasses.egg-info/PKG-INFO
+metaglasses.egg-info/SOURCES.txt
+metaglasses.egg-info/dependency_links.txt
+metaglasses.egg-info/requires.txt
+metaglasses.egg-info/top_level.txt
+tests/test_ai.py
+tests/test_glasses.py
+tests/test_media.py
+tests/test_voice.py
