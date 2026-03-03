@@ -15,9 +15,16 @@ from .glasses import Glasses, GlassesConnectionError, GlassesNotConnectedError
 from .media import MediaManager, Photo, Video
 from .voice import VoiceCommandHandler
 from .ai import MetaAIClient
+from .apps import App, AppRunner
+from .apps.pricing import PricingApp
+from .apps.research import ResearchApp
+from .apps.outreach import OutreachApp, OutreachItem
+from .apps.livestream import LivestreamApp, Platform, StreamSession
+from .apps.recorder import RecorderApp, Clip
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
+    # Core
     "Glasses",
     "GlassesConnectionError",
     "GlassesNotConnectedError",
@@ -26,4 +33,17 @@ __all__ = [
     "Video",
     "VoiceCommandHandler",
     "MetaAIClient",
+    # Apps framework
+    "App",
+    "AppRunner",
+    # Built-in apps
+    "PricingApp",
+    "ResearchApp",
+    "OutreachApp",
+    "OutreachItem",
+    "LivestreamApp",
+    "Platform",
+    "StreamSession",
+    "RecorderApp",
+    "Clip",
 ]
