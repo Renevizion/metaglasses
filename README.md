@@ -10,34 +10,56 @@ fast as you can think of them.
 
 ---
 
-> ### 📋 Want to get this running on your phone and glasses?
-> Start here: **[SETUP_GUIDE.md](SETUP_GUIDE.md)** — the honest, step-by-step
-> guide covering what you need, what works today, what's still being built,
-> and how to go from zero to live apps on real hardware.
+## 🚀 How to launch this
+
+> **This is a Python project — there is no `npm run dev`.**  
+> You need Python 3.10+ installed, not Node.js.  
+> Get Python at [python.org/downloads](https://python.org/downloads) if you don't have it.
+
+```bash
+# 1 — Clone and enter the repo
+git clone https://github.com/Renevizion/metaglasses.git
+cd metaglasses
+
+# 2 — Install the SDK
+pip install -e .
+
+# 3 — Run any example (no glasses needed — works in simulation mode)
+python examples/quick_apps.py
+
+# To use real AI features, add your Meta AI API key:
+META_AI_API_KEY=your-key-here python examples/research_app.py
+```
+
+**That's it for your computer.**  To get it running on your phone and talking to
+your actual glasses, see the full guide:
+👉 **[SETUP_GUIDE.md](SETUP_GUIDE.md)** — covers Android (Termux), API keys,
+real Bluetooth wiring, and practical workarounds.
 
 ---
 
 ## Table of Contents
 
-1. [Hardware overview](#hardware-overview)
-2. [**Real-world setup guide →**](SETUP_GUIDE.md)
-3. [Apps — the fast way to build](#apps--the-fast-way-to-build)
+1. [🚀 How to launch this](#-how-to-launch-this)
+2. [Hardware overview](#hardware-overview)
+3. [**Real-world setup guide →**](SETUP_GUIDE.md)
+4. [Apps — the fast way to build](#apps--the-fast-way-to-build)
    - [Built-in apps](#built-in-apps)
    - [Livestream to one or all platforms](#livestream-to-one-or-all-platforms)
    - [Rapid-fire custom apps with QuickApp](#rapid-fire-custom-apps-with-quickapp)
    - [AppRunner — manage many apps at once](#apprunner--manage-many-apps-at-once)
-4. [Core SDK usage](#core-sdk-usage)
+5. [Core SDK usage](#core-sdk-usage)
    - [Connecting to the glasses](#connecting-to-the-glasses)
    - [Capturing photos & videos](#capturing-photos--videos)
    - [Managing media](#managing-media)
    - [Voice commands](#voice-commands)
    - [Meta AI integration](#meta-ai-integration)
-5. [Examples](#examples)
-6. [Development setup](#development-setup)
-7. [Architecture](#architecture)
-8. [Roadmap](#roadmap)
-9. [Contributing](#contributing)
-10. [License](#license)
+6. [Examples](#examples)
+7. [Development setup](#development-setup)
+8. [Architecture](#architecture)
+9. [Roadmap](#roadmap)
+10. [Contributing](#contributing)
+11. [License](#license)
 
 ---
 
