@@ -105,6 +105,7 @@ class RecorderApp(App):
 
         self.clips: List[Clip] = []
         self._recording_started_at: Optional[datetime] = None
+        self._pending_title_hint: Optional[str] = None
 
     # ------------------------------------------------------------------
     # Public API

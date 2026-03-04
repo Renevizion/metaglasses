@@ -21,6 +21,7 @@ from .apps.research import ResearchApp
 from .apps.outreach import OutreachApp, OutreachItem
 from .apps.livestream import LivestreamApp, Platform, StreamSession
 from .apps.recorder import RecorderApp, Clip
+from .apps.factory import QuickApp, quick_app
 
 __version__ = "0.2.0"
 __all__ = [
@@ -46,4 +47,7 @@ __all__ = [
     "StreamSession",
     "RecorderApp",
     "Clip",
+    # Rapid app factory
+    "QuickApp",
+    "quick_app",
 ]

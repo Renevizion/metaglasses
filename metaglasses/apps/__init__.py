@@ -150,6 +150,9 @@ class AppRunner:
     def register(self, app: App) -> None:
         """Register *app* with the runner.
 
+        If *app* is a :class:`~metaglasses.apps.factory.QuickApp` it is
+        automatically bound to this runner's glasses and AI client.
+
         Parameters
         ----------
         app:
@@ -164,6 +167,10 @@ class AppRunner:
             raise ValueError(f"{app!r} has no 'name' set.")
         if app.name in self._apps:
             raise ValueError(f"An app named {app.name!r} is already registered.")
+        # Auto-bind QuickApp instances that haven't been bound yet
+        from metaglasses.apps.factory import QuickApp
+        if isinstance(app, QuickApp) and not app._bound:
+            app.bind(self.glasses, self.ai)
         self._apps[app.name] = app
 
     def unregister(self, name: str) -> None:

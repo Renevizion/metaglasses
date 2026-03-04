@@ -4,8 +4,9 @@
 
 `metaglasses` gives you a clean, high-level Python interface to the Ray-Ban
 Meta Smart Glasses.  It wraps the Bluetooth LE connection, media management,
-voice-command dispatch, and the Meta AI API into simple building blocks you
-can use to create your own apps and integrations.
+voice-command dispatch, and the Meta AI API into simple building blocks — plus
+a full **ready-to-run apps layer** that lets you spin up specialized apps as
+fast as you can think of them.
 
 ---
 
@@ -14,18 +15,23 @@ can use to create your own apps and integrations.
 1. [Hardware overview](#hardware-overview)
 2. [Quick start](#quick-start)
 3. [Installation](#installation)
-4. [Usage](#usage)
+4. [Apps — the fast way to build](#apps--the-fast-way-to-build)
+   - [Built-in apps](#built-in-apps)
+   - [Livestream to one or all platforms](#livestream-to-one-or-all-platforms)
+   - [Rapid-fire custom apps with QuickApp](#rapid-fire-custom-apps-with-quickapp)
+   - [AppRunner — manage many apps at once](#apprunner--manage-many-apps-at-once)
+5. [Core SDK usage](#core-sdk-usage)
    - [Connecting to the glasses](#connecting-to-the-glasses)
    - [Capturing photos & videos](#capturing-photos--videos)
    - [Managing media](#managing-media)
    - [Voice commands](#voice-commands)
    - [Meta AI integration](#meta-ai-integration)
-5. [Examples](#examples)
-6. [Development setup](#development-setup)
-7. [Architecture](#architecture)
-8. [Roadmap](#roadmap)
-9. [Contributing](#contributing)
-10. [License](#license)
+6. [Examples](#examples)
+7. [Development setup](#development-setup)
+8. [Architecture](#architecture)
+9. [Roadmap](#roadmap)
+10. [Contributing](#contributing)
+11. [License](#license)
 
 ---
 
@@ -43,7 +49,189 @@ can use to create your own apps and integrations.
 
 ---
 
-## Quick start
+## Apps — the fast way to build
+
+The `metaglasses.apps` layer is designed for exactly this scenario:  
+**rapid-fire app creation** — you have an idea, you want it running in minutes.
+
+---
+
+### Built-in apps
+
+Five production-ready apps are included out of the box:
+
+| App | Voice trigger | What it does |
+|---|---|---|
+| `PricingApp` | *"hey meta, price check AirPods"* | AI price lookup for products by name or camera |
+| `ResearchApp` | *"hey meta, research quantum computing"* | AI research summary + follow-up questions |
+| `OutreachApp` | *"hey meta, text Sarah: on my way"* | Voice-compose messages, emails & calls |
+| `LivestreamApp` | *"hey meta, go live on youtube"* | RTMP streaming to any platform or all at once |
+| `RecorderApp` | *"hey meta, start recording"* | Auto-named clip recording with session tracking |
+
+```python
+import os
+from metaglasses import Glasses, MetaAIClient, AppRunner
+from metaglasses import PricingApp, ResearchApp, OutreachApp, RecorderApp
+from metaglasses.apps.livestream import LivestreamApp, Platform
+
+glasses = Glasses()
+glasses.connect()
+ai = MetaAIClient(api_key=os.environ["META_AI_API_KEY"])
+
+runner = AppRunner(glasses, ai)
+runner.register(PricingApp(glasses, ai))
+runner.register(ResearchApp(glasses, ai))
+runner.register(OutreachApp(glasses, ai, on_send=lambda item: print(item)))
+runner.register(RecorderApp(glasses, on_clip_saved=lambda c: print(c.filename)))
+
+# Launch them all — they listen simultaneously
+for app in runner.list_apps():
+    runner.launch(app["name"])
+
+# Now just talk to your glasses…
+# "hey meta, price check Sony WH-1000XM5"
+# "hey meta, research the history of jazz"
+# "hey meta, text Alex: running late"
+# "hey meta, start recording"
+
+runner.stop_all()
+glasses.disconnect()
+```
+
+---
+
+### Livestream to one or all platforms
+
+Stream to a **single platform**, **multiple simultaneously**, or **everywhere at once**.
+
+```python
+from metaglasses.apps.livestream import LivestreamApp, Platform
+
+app = LivestreamApp(
+    glasses,
+    stream_keys={
+        Platform.YOUTUBE:   "yt-stream-key",
+        Platform.INSTAGRAM: "ig-stream-key",
+        Platform.TWITTER:   "tw-stream-key",
+        Platform.TWITCH:    "twitch-stream-key",
+    },
+    # Point all streams at a relay service so the glasses only push once
+    relay_url="rtmp://live.restream.io/live/re_YOUR_KEY",
+)
+app.start()
+
+# Single platform
+app.go_live(Platform.YOUTUBE)
+app.end_stream()
+
+# Two platforms at once
+app.go_live_multi([Platform.INSTAGRAM, Platform.TWITTER])
+app.end_stream()
+
+# All configured platforms at once
+app.go_live_all()
+app.end_stream()
+
+# Voice: "hey meta, go live on youtube and instagram"
+# Voice: "hey meta, go live everywhere"
+# Voice: "hey meta, stop streaming"
+```
+
+**Supported platforms:** YouTube · Twitch · Instagram · Facebook · TikTok · Twitter/X · Custom RTMP
+
+---
+
+### Rapid-fire custom apps with QuickApp
+
+Don't want to write a full sub-class?  Use `QuickApp` to define any
+specialized app in **3-5 lines** with a fluent builder:
+
+```python
+from metaglasses import AppRunner
+from metaglasses.apps.factory import QuickApp, quick_app
+
+# Nutrition assistant
+nutrition = (
+    QuickApp("nutrition", "Calorie & nutrition info",
+             ai_system_prompt="You are a certified nutritionist. Be concise.")
+    .on(r"(?:calories|nutrition|how healthy is)\s+(.+)",
+        lambda ctx, app: app.say(app.ask_ai(f"Nutrition info for: {ctx['groups'][0]}")))
+    .on(r"is .+ healthy",
+        lambda ctx, app: app.say(app.ask_ai(ctx["matched_text"])))
+)
+
+# Wine sommelier
+wine = (
+    QuickApp("wine", "Wine pairings and recommendations",
+             ai_system_prompt="You are a world-class sommelier.")
+    .on(r"(?:recommend|suggest|pair)\s+(?:a\s+)?wine\s*(.*)",
+        lambda ctx, app: app.say(app.ask_ai(f"Recommend a wine for: {ctx['groups'][0]}")))
+)
+
+# Stock ticker
+stocks = quick_app("stocks", "Stock price lookups",
+                   ai_system_prompt="You are a financial assistant.") \
+    .on(r"(?:price of|stock)\s+([A-Za-z]+)",
+        lambda ctx, app: app.say(app.ask_ai(f"Price of {ctx['groups'][0]}")))
+
+# Language translator
+translator = (
+    QuickApp("translator", "Instant translation")
+    .on(r"translate (.+) to (\w+)",
+        lambda ctx, app: app.say(app.ask_ai(
+            f"Translate '{ctx['groups'][0]}' to {ctx['groups'][1]}")))
+    .on(r"how do you say (.+) in (\w+)",
+        lambda ctx, app: app.say(app.ask_ai(
+            f"How do you say '{ctx['groups'][0]}' in {ctx['groups'][1]}?")))
+)
+
+# Register all at once — AppRunner auto-binds glasses & AI to QuickApps
+runner = AppRunner(glasses, ai)
+for a in [nutrition, wine, stocks, translator]:
+    runner.register(a)
+    runner.launch(a.name)
+
+# All 4 specialized apps are now listening simultaneously
+runner.stop_all()
+```
+
+Every `QuickApp` gets:
+- **`app.ask_ai(prompt)`** — send a question to your AI client and get back a string
+- **`app.say(text)`** — store result + fire your `on_result` callback (wire to TTS)
+- **`ctx["groups"]`** — regex capture groups from the voice utterance
+- **Auto-bind** via `AppRunner.register()` — no need to pass glasses/ai manually
+
+---
+
+### AppRunner — manage many apps at once
+
+```python
+runner = AppRunner(glasses, ai)
+
+# Register apps
+runner.register(my_app_1)
+runner.register(my_app_2)
+
+# Launch individual apps
+runner.launch("pricing")
+runner.launch("recorder")
+
+# Inspect what's running
+for info in runner.list_apps():
+    print(f"{info['name']:12s} active={info['active']}")
+
+# Stop everything
+runner.stop_all()
+
+# Remove an app
+runner.unregister("pricing")
+```
+
+---
+
+## Core SDK usage
+
+### Connecting to the glasses
 
 ```python
 from metaglasses import Glasses
@@ -232,11 +420,19 @@ Ready-to-run example scripts live in the [`examples/`](examples/) folder:
 | [`photo_capture.py`](examples/photo_capture.py) | Capture a photo and download it |
 | [`voice_commands.py`](examples/voice_commands.py) | Register and dispatch voice commands |
 | [`ai_assistant.py`](examples/ai_assistant.py) | Ask Meta AI questions via voice |
+| [`pricing_app.py`](examples/pricing_app.py) | Price-check products by voice or camera |
+| [`research_app.py`](examples/research_app.py) | Research any topic via voice |
+| [`outreach_app.py`](examples/outreach_app.py) | Send messages, emails, calls via voice |
+| [`livestream_app.py`](examples/livestream_app.py) | Stream to one or all platforms at once |
+| [`recorder_app.py`](examples/recorder_app.py) | Record auto-named clips with session tracking |
+| [`quick_apps.py`](examples/quick_apps.py) | Rapid-fire 5 specialized apps in ~30 lines |
 
 Run any example with:
 
 ```bash
 python examples/basic_connection.py
+# or with an AI key:
+META_AI_API_KEY=your-key python examples/quick_apps.py
 ```
 
 ---
@@ -267,28 +463,43 @@ pytest tests/test_glasses.py -v
 
 ```
 metaglasses/
-├── glasses.py      # Core device connection & control (BLE transport layer)
-├── media.py        # Photo / video listing, download & deletion
-├── voice.py        # Voice-command registration & dispatch
-└── ai.py           # Meta AI API client (chat, streaming, vision)
+├── glasses.py          # Core device connection & control (BLE transport layer)
+├── media.py            # Photo / video listing, download & deletion
+├── voice.py            # Voice-command registration & dispatch
+├── ai.py               # Meta AI API client (chat, streaming, vision)
+└── apps/
+    ├── __init__.py     # App base class + AppRunner registry
+    ├── pricing.py      # PricingApp  — price lookups
+    ├── research.py     # ResearchApp — AI research & summaries
+    ├── outreach.py     # OutreachApp — messages, email, calls
+    ├── livestream.py   # LivestreamApp — multi-platform RTMP
+    ├── recorder.py     # RecorderApp — auto-named clip recording
+    └── factory.py      # QuickApp — rapid custom app builder
 
 examples/
 ├── basic_connection.py
 ├── photo_capture.py
 ├── voice_commands.py
-└── ai_assistant.py
+├── ai_assistant.py
+├── pricing_app.py
+├── research_app.py
+├── outreach_app.py
+├── livestream_app.py
+├── recorder_app.py
+└── quick_apps.py       # ← start here to see rapid app creation
 
 tests/
+├── conftest.py
 ├── test_glasses.py
 ├── test_media.py
 ├── test_voice.py
-└── test_ai.py
+├── test_ai.py
+└── test_apps.py        # covers all 5 apps + QuickApp + AppRunner
 ```
 
-The SDK is designed to be transport-agnostic.  The `glasses.py` module
-contains clearly-marked placeholder methods (`_discover`, `_fetch_device_info`,
-`_set_led`) that you replace with real `bleak` Bluetooth LE calls once you
-have hardware available.
+The SDK is transport-agnostic.  The `glasses.py` module contains clearly-marked
+placeholder methods (`_discover`, `_fetch_device_info`, `_set_led`) that you
+replace with real `bleak` Bluetooth LE calls once you have hardware available.
 
 ---
 
@@ -301,6 +512,8 @@ have hardware available.
 - [ ] Async (`asyncio`) API
 - [ ] CLI tool (`metaglasses status`, `metaglasses download-all`, …)
 - [ ] Companion Android/iOS helper app for bridging BLE ↔ Wi-Fi
+- [ ] More built-in apps: `TranslatorApp`, `NavigationApp`, `CalendarApp`, `ShoppingApp`
+- [ ] Restream.io / relay auto-provisioning for multi-platform live
 
 ---
 

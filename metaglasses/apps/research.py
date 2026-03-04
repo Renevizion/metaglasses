@@ -101,7 +101,8 @@ class ResearchApp(App):
         if self.ai is None:
             raise RuntimeError("ResearchApp requires an AI client (ai= argument).")
         self._current_topic = topic
-        self.ai.clear_history()
+        # Clear only user/assistant messages, preserving the system prompt
+        self.ai._history = [m for m in self.ai._history if m.role == "system"]
         response = self.ai.chat(f"Research this topic for me: {topic}")
         result = {"topic": topic, "summary": response.text}
         self.last_result = result
