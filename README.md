@@ -10,28 +10,34 @@ fast as you can think of them.
 
 ---
 
+> ### 📋 Want to get this running on your phone and glasses?
+> Start here: **[SETUP_GUIDE.md](SETUP_GUIDE.md)** — the honest, step-by-step
+> guide covering what you need, what works today, what's still being built,
+> and how to go from zero to live apps on real hardware.
+
+---
+
 ## Table of Contents
 
 1. [Hardware overview](#hardware-overview)
-2. [Quick start](#quick-start)
-3. [Installation](#installation)
-4. [Apps — the fast way to build](#apps--the-fast-way-to-build)
+2. [**Real-world setup guide →**](SETUP_GUIDE.md)
+3. [Apps — the fast way to build](#apps--the-fast-way-to-build)
    - [Built-in apps](#built-in-apps)
    - [Livestream to one or all platforms](#livestream-to-one-or-all-platforms)
    - [Rapid-fire custom apps with QuickApp](#rapid-fire-custom-apps-with-quickapp)
    - [AppRunner — manage many apps at once](#apprunner--manage-many-apps-at-once)
-5. [Core SDK usage](#core-sdk-usage)
+4. [Core SDK usage](#core-sdk-usage)
    - [Connecting to the glasses](#connecting-to-the-glasses)
    - [Capturing photos & videos](#capturing-photos--videos)
    - [Managing media](#managing-media)
    - [Voice commands](#voice-commands)
    - [Meta AI integration](#meta-ai-integration)
-6. [Examples](#examples)
-7. [Development setup](#development-setup)
-8. [Architecture](#architecture)
-9. [Roadmap](#roadmap)
-10. [Contributing](#contributing)
-11. [License](#license)
+5. [Examples](#examples)
+6. [Development setup](#development-setup)
+7. [Architecture](#architecture)
+8. [Roadmap](#roadmap)
+9. [Contributing](#contributing)
+10. [License](#license)
 
 ---
 
