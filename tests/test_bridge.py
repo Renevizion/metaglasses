@@ -335,3 +335,239 @@ class TestConnectViaBridge:
 
         b.stop()
         assert any(e.get("event") == "audio_transcript" for e in received)
+
+
+# ---------------------------------------------------------------------------
+# GET /status
+# ---------------------------------------------------------------------------
+
+class TestStatusEndpoint:
+    def test_status_returns_connected_true(self, bridge, glasses):
+        url = f"http://127.0.0.1:{bridge.port}/status"
+        resp = _get(url)
+        assert resp["connected"] is True
+
+    def test_status_includes_expected_keys(self, bridge):
+        url = f"http://127.0.0.1:{bridge.port}/status"
+        resp = _get(url)
+        for key in ("connected", "firmware", "battery_pct",
+                    "storage_used_mb", "storage_total_mb",
+                    "capture_mode", "is_charging"):
+            assert key in resp, f"missing key: {key}"
+
+    def test_status_disconnected_returns_503(self):
+        g = Glasses()   # not connected
+        port = _free_port()
+        b = MobileBridge(g, port=port)
+        b.start()
+        _wait_for_server("127.0.0.1", port)
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/status")
+            pytest.fail("Expected HTTPError")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 503
+            body = json.loads(exc.read())
+            assert "error" in body
+        finally:
+            b.stop()
+
+
+# ---------------------------------------------------------------------------
+# POST /capture/photo
+# ---------------------------------------------------------------------------
+
+class TestCapturePhotoEndpoint:
+    def test_capture_photo_returns_media_id(self, bridge):
+        url = f"http://127.0.0.1:{bridge.port}/capture/photo"
+        resp = _post(url)
+        assert "media_id" in resp
+        assert isinstance(resp["media_id"], str)
+        assert resp["media_id"]
+
+    def test_capture_photo_media_id_is_unique(self, bridge):
+        url = f"http://127.0.0.1:{bridge.port}/capture/photo"
+        id1 = _post(url)["media_id"]
+        id2 = _post(url)["media_id"]
+        assert id1 != id2
+
+    def test_capture_photo_disconnected_returns_503(self):
+        g = Glasses()   # not connected
+        port = _free_port()
+        b = MobileBridge(g, port=port)
+        b.start()
+        _wait_for_server("127.0.0.1", port)
+        try:
+            _post(f"http://127.0.0.1:{port}/capture/photo")
+            pytest.fail("Expected HTTPError")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 503
+        finally:
+            b.stop()
+
+
+# ---------------------------------------------------------------------------
+# POST /capture/video/start  and  POST /capture/video/stop
+# ---------------------------------------------------------------------------
+
+class TestVideoEndpoints:
+    def test_start_returns_empty_dict(self, bridge):
+        resp = _post(f"http://127.0.0.1:{bridge.port}/capture/video/start")
+        assert resp == {}
+
+    def test_stop_returns_media_id(self, bridge):
+        _post(f"http://127.0.0.1:{bridge.port}/capture/video/start")
+        resp = _post(f"http://127.0.0.1:{bridge.port}/capture/video/stop")
+        assert "media_id" in resp
+        assert isinstance(resp["media_id"], str)
+
+    def test_double_start_returns_409(self, bridge):
+        _post(f"http://127.0.0.1:{bridge.port}/capture/video/start")
+        try:
+            _post(f"http://127.0.0.1:{bridge.port}/capture/video/start")
+            pytest.fail("Expected HTTPError")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 409
+
+    def test_start_disconnected_returns_503(self):
+        g = Glasses()
+        port = _free_port()
+        b = MobileBridge(g, port=port)
+        b.start()
+        _wait_for_server("127.0.0.1", port)
+        try:
+            _post(f"http://127.0.0.1:{port}/capture/video/start")
+            pytest.fail("Expected HTTPError")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 503
+        finally:
+            b.stop()
+
+
+# ---------------------------------------------------------------------------
+# POST /ai/chat
+# ---------------------------------------------------------------------------
+
+class TestAIChatEndpoint:
+    def _make_bridge_with_ai(self):
+        from unittest.mock import MagicMock
+        from metaglasses.ai import AIResponse
+
+        g = Glasses()
+        g.connect()
+        ai = MagicMock()
+        ai.chat.return_value = AIResponse(text="Paris.", model="test-model")
+
+        port = _free_port()
+        b = MobileBridge(g, ai=ai, port=port)
+        b.start()
+        _wait_for_server("127.0.0.1", port)
+        return b, ai
+
+    def test_ai_chat_returns_text_and_model(self):
+        b, ai = self._make_bridge_with_ai()
+        try:
+            resp = _post(
+                f"http://127.0.0.1:{b.port}/ai/chat",
+                {"message": "What is the capital of France?"},
+            )
+            assert resp["text"] == "Paris."
+            assert resp["model"] == "test-model"
+        finally:
+            b.stop()
+
+    def test_ai_chat_calls_ai_with_message(self):
+        b, ai = self._make_bridge_with_ai()
+        try:
+            _post(f"http://127.0.0.1:{b.port}/ai/chat", {"message": "Hello"})
+            ai.chat.assert_called_once_with("Hello")
+        finally:
+            b.stop()
+
+    def test_ai_chat_missing_message_returns_400(self):
+        b, _ai = self._make_bridge_with_ai()
+        try:
+            _post(f"http://127.0.0.1:{b.port}/ai/chat", {})
+            pytest.fail("Expected HTTPError")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 400
+            body = json.loads(exc.read())
+            assert "error" in body
+        finally:
+            b.stop()
+
+    def test_ai_chat_no_ai_returns_503(self, bridge):
+        # bridge fixture has no AI client
+        try:
+            _post(f"http://127.0.0.1:{bridge.port}/ai/chat", {"message": "hi"})
+            pytest.fail("Expected HTTPError")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 503
+            body = json.loads(exc.read())
+            assert "error" in body
+
+    def test_ai_chat_invalid_json_returns_400(self, bridge):
+        url = f"http://127.0.0.1:{bridge.port}/ai/chat"
+        req = urllib.request.Request(
+            url,
+            data=b"not json",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(req)
+            pytest.fail("Expected HTTPError")
+        except urllib.error.HTTPError as exc:
+            assert exc.code in (400, 503)
+
+
+# ---------------------------------------------------------------------------
+# CORS headers
+# ---------------------------------------------------------------------------
+
+class TestCORSHeaders:
+    def _check_cors(self, resp_headers: dict) -> None:
+        # headers object from urllib is case-insensitive
+        assert resp_headers.get("Access-Control-Allow-Origin") == "*"
+
+    def test_get_health_has_cors(self, bridge):
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{bridge.port}/health"
+        ) as resp:
+            self._check_cors(resp.headers)
+
+    def test_get_status_has_cors(self, bridge):
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{bridge.port}/status"
+        ) as resp:
+            self._check_cors(resp.headers)
+
+    def test_post_capture_photo_has_cors(self, bridge):
+        url = f"http://127.0.0.1:{bridge.port}/capture/photo"
+        req = urllib.request.Request(url, data=b"{}", method="POST")
+        with urllib.request.urlopen(req) as resp:
+            self._check_cors(resp.headers)
+
+    def test_options_preflight_returns_200_with_cors(self, bridge):
+        url = f"http://127.0.0.1:{bridge.port}/capture/photo"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+            },
+            method="OPTIONS",
+        )
+        with urllib.request.urlopen(req) as resp:
+            assert resp.status == 200
+            self._check_cors(resp.headers)
+
+    def test_error_response_has_cors(self, bridge):
+        url = f"http://127.0.0.1:{bridge.port}/ai/chat"
+        req = urllib.request.Request(
+            url, data=b'{"message":"hi"}', method="POST"
+        )
+        try:
+            urllib.request.urlopen(req)
+        except urllib.error.HTTPError as exc:
+            self._check_cors(exc.headers)
+

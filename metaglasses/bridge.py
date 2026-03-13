@@ -1,46 +1,83 @@
 """
-Mobile bridge server for Ray-Ban Meta Smart Glasses.
+HTTP server that acts as the backend service for your glasses apps.
 
-Because the glasses communicate through the Meta AI app on your phone
-(not via a generic Bluetooth API), Python cannot connect to the glasses
-directly from a laptop or desktop.  Instead, build a small iOS or Android
-app using the official Meta Wearables Device Access Toolkit (MWDAT), and
-have it forward glasses events to this bridge server over HTTP.
+If you build your user-interface in Lovable.dev, React, Next.js, or any
+other web framework, **this is the Python backend you connect it to**.  Run
+this server once on your computer (or phone), then call it from your frontend
+app with ordinary ``fetch()`` calls.
 
-Architecture::
+Architecture
+------------
+::
 
-    Glasses
-       |  (proprietary BLE / MWDAT SDK)
-    Mobile App (iOS / Android)
-       |  (HTTP POST — events, media)
-    MobileBridge  ←  this module, runs in your Python process
-       |  (Python API)
+    Your App (Lovable.dev, React, any web / mobile UI)
+       |  fetch("http://localhost:8765/capture/photo", {method: "POST"})
+       |
+    MobileBridge  ←  this module, starts with one line of Python
+       |  glasses.take_photo()  /  ai.chat(message)  / …
     metaglasses SDK (Glasses, VoiceCommandHandler, Apps, MetaAIClient …)
+       |  (Bluetooth LE / MWDAT mobile SDK)
+    Ray-Ban Meta Glasses
 
-The mobile app POSTs glasses events (button presses, audio transcriptions,
-capture completions, etc.) to ``POST /event``.  It also POSTs captured media
-bytes to ``POST /media``.  Responses from your Python logic (e.g. AI replies
-to be spoken through the glasses) are enqueued via :meth:`MobileBridge.send_response`
-and retrieved by the mobile app via ``GET /response``.
+REST API
+--------
+Every response is JSON with CORS headers so browser apps can call the
+server directly without a proxy.
 
-Typical usage::
++----------------------------------+--------+-------------------------------------------+
+| Endpoint                         | Method | Description                               |
++==================================+========+===========================================+
+| ``/health``                      | GET    | ``{"status": "ok"}``                      |
++----------------------------------+--------+-------------------------------------------+
+| ``/status``                      | GET    | Glasses status dict (battery, firmware …) |
++----------------------------------+--------+-------------------------------------------+
+| ``/capture/photo``               | POST   | Take a photo → ``{"media_id": "..."}``    |
++----------------------------------+--------+-------------------------------------------+
+| ``/capture/video/start``         | POST   | Start recording → ``{}``                  |
++----------------------------------+--------+-------------------------------------------+
+| ``/capture/video/stop``          | POST   | Stop recording → ``{"media_id": "..."}``  |
++----------------------------------+--------+-------------------------------------------+
+| ``/ai/chat``                     | POST   | Chat with AI → ``{"text": "...", …}``     |
++----------------------------------+--------+-------------------------------------------+
+| ``/event``                       | POST   | Forward a raw glasses event dict          |
++----------------------------------+--------+-------------------------------------------+
+| ``/media``                       | POST   | Upload captured media bytes               |
++----------------------------------+--------+-------------------------------------------+
+| ``/response``                    | GET    | Poll for TTS/AI replies (mobile app use)  |
++----------------------------------+--------+-------------------------------------------+
 
-    from metaglasses import Glasses
+Quick start (Python side)::
+
+    from metaglasses import Glasses, MetaAIClient
     from metaglasses.bridge import MobileBridge
 
     glasses = Glasses()
-    bridge = MobileBridge(glasses, host="0.0.0.0", port=8765)
+    glasses.connect()
+    ai = MetaAIClient(api_key="YOUR_KEY")
+
+    bridge = MobileBridge(glasses, ai=ai, host="0.0.0.0", port=8765)
     bridge.start()
+    # → Server is now listening.  Call it from any frontend app.
 
-    # Put the glasses in bridge mode (marks them as connected,
-    # delegates event dispatch to the bridge)
-    glasses.connect_via_bridge(bridge)
+Quick start (JavaScript / Lovable.dev side)::
 
-    # Your app logic runs as normal — voice commands, AI queries, etc.
-    # Events arriving over HTTP from the mobile app are dispatched here.
+    const BASE = "http://localhost:8765";
 
-    bridge.stop()
-    glasses.disconnect()
+    // Check glasses status
+    const status = await fetch(`${BASE}/status`).then(r => r.json());
+    console.log(status.battery_pct, status.firmware);
+
+    // Take a photo
+    const { media_id } = await fetch(`${BASE}/capture/photo`, {
+      method: "POST"
+    }).then(r => r.json());
+
+    // Ask the AI a question
+    const { text } = await fetch(`${BASE}/ai/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "What restaurants are nearby?" })
+    }).then(r => r.json());
 
 Mobile app integration
 ----------------------
@@ -79,9 +116,12 @@ import logging
 import queue
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Callable, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
-from .glasses import Glasses
+from .glasses import Glasses, GlassesNotConnectedError
+
+if TYPE_CHECKING:
+    from .ai import MetaAIClient
 
 _logger = logging.getLogger(__name__)
 
@@ -91,25 +131,23 @@ _logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 class MobileBridge:
-    """HTTP server that receives events forwarded from the mobile companion app.
+    """HTTP server that exposes the glasses to any frontend app.
 
-    The mobile app (iOS / Android) uses the Meta MWDAT SDK to talk to the
-    glasses over the official channel, then forwards events (button presses,
-    audio transcriptions, captured media metadata, etc.) to this server via
-    HTTP POST requests.
-
-    Python sends responses back by enqueuing them via :meth:`send_response`;
-    the mobile app polls ``GET /response`` to pick them up and route them to
-    the glasses' speaker (e.g. via on-device TTS) or display.
+    Run it alongside your existing app — whether that app lives in Lovable.dev,
+    a GitHub repo, or anywhere else.  Your frontend calls ordinary HTTP endpoints
+    on this server; the server translates those calls into glasses actions.
 
     Parameters
     ----------
     glasses:
         The :class:`~metaglasses.glasses.Glasses` instance to dispatch
-        incoming events to.
+        incoming requests to.
+    ai:
+        Optional :class:`~metaglasses.ai.MetaAIClient`.  Required for the
+        ``POST /ai/chat`` endpoint.
     host:
         Interface to bind the HTTP server to.  Use ``"0.0.0.0"`` to accept
-        connections from the mobile app on the same Wi-Fi network.
+        connections from other devices on the same Wi-Fi network.
         Defaults to ``"127.0.0.1"``.
     port:
         TCP port to listen on.  Defaults to ``8765``.
@@ -121,11 +159,13 @@ class MobileBridge:
     def __init__(
         self,
         glasses: Glasses,
+        ai: Optional["MetaAIClient"] = None,
         host: str = "127.0.0.1",
         port: int = 8765,
         on_media: Optional[Callable[[bytes, dict], None]] = None,
     ) -> None:
         self.glasses = glasses
+        self.ai = ai
         self.host = host
         self.port = port
         self.on_media = on_media
@@ -213,10 +253,52 @@ class MobileBridge:
         bridge = self
 
         class _Handler(BaseHTTPRequestHandler):
+
+            # ----------------------------------------------------------
+            # CORS pre-flight (browsers send this before cross-origin
+            # POST requests, e.g. from a Lovable.dev app)
+            # ----------------------------------------------------------
+
+            def do_OPTIONS(self) -> None:
+                self.send_response(200)
+                self._cors_headers()
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            # ----------------------------------------------------------
+            # GET
+            # ----------------------------------------------------------
+
+            def do_GET(self) -> None:
+                if self.path == "/health":
+                    self._ok({"status": "ok"})
+                elif self.path == "/status":
+                    try:
+                        self._ok(bridge.glasses.status())
+                    except GlassesNotConnectedError as exc:
+                        self._error(503, str(exc))
+                elif self.path == "/response":
+                    self._ok({"responses": bridge.pending_responses()})
+                else:
+                    self._error(404, f"Unknown endpoint: {self.path}")
+
+            # ----------------------------------------------------------
+            # POST
+            # ----------------------------------------------------------
+
             def do_POST(self) -> None:
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length)
-                if self.path == "/event":
+
+                if self.path == "/capture/photo":
+                    self._handle_capture_photo()
+                elif self.path == "/capture/video/start":
+                    self._handle_video_start()
+                elif self.path == "/capture/video/stop":
+                    self._handle_video_stop()
+                elif self.path == "/ai/chat":
+                    self._handle_ai_chat(body)
+                elif self.path == "/event":
                     bridge._handle_event(body)
                     self._ok({})
                 elif self.path == "/media":
@@ -228,26 +310,96 @@ class MobileBridge:
                     bridge._handle_media(body, metadata)
                     self._ok({})
                 else:
-                    self.send_response(404)
-                    self.end_headers()
+                    self._error(404, f"Unknown endpoint: {self.path}")
 
-            def do_GET(self) -> None:
-                if self.path == "/response":
-                    responses = bridge.pending_responses()
-                    self._ok({"responses": responses})
-                elif self.path == "/health":
-                    self._ok({"status": "ok"})
-                else:
-                    self.send_response(404)
-                    self.end_headers()
+            # ----------------------------------------------------------
+            # Capture helpers
+            # ----------------------------------------------------------
+
+            def _handle_capture_photo(self) -> None:
+                try:
+                    media_id = bridge.glasses.take_photo()
+                    self._ok({"media_id": media_id})
+                except GlassesNotConnectedError as exc:
+                    self._error(503, str(exc))
+
+            def _handle_video_start(self) -> None:
+                try:
+                    bridge.glasses.start_video()
+                    self._ok({})
+                except GlassesNotConnectedError as exc:
+                    self._error(503, str(exc))
+                except RuntimeError as exc:
+                    self._error(409, str(exc))
+
+            def _handle_video_stop(self) -> None:
+                try:
+                    media_id = bridge.glasses.stop_video()
+                    self._ok({"media_id": media_id})
+                except GlassesNotConnectedError as exc:
+                    self._error(503, str(exc))
+
+            # ----------------------------------------------------------
+            # AI helper
+            # ----------------------------------------------------------
+
+            def _handle_ai_chat(self, body: bytes) -> None:
+                if bridge.ai is None:
+                    self._error(
+                        503,
+                        "No AI client configured. Pass ai=MetaAIClient(...) "
+                        "to MobileBridge().",
+                    )
+                    return
+                try:
+                    payload: Any = json.loads(body.decode())
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    self._error(400, "Request body must be JSON with a 'message' field.")
+                    return
+                message = (payload or {}).get("message", "")
+                if not message:
+                    self._error(400, "Missing 'message' field in request body.")
+                    return
+                try:
+                    response = bridge.ai.chat(message)
+                    self._ok({"text": response.text, "model": response.model})
+                except Exception as exc:
+                    self._error(500, str(exc))
+
+            # ----------------------------------------------------------
+            # Response helpers
+            # ----------------------------------------------------------
 
             def _ok(self, payload: dict) -> None:
                 data = json.dumps(payload).encode()
                 self.send_response(200)
+                self._cors_headers()
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
+
+            def _error(self, code: int, message: str) -> None:
+                data = json.dumps({"error": message}).encode()
+                self.send_response(code)
+                self._cors_headers()
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def _cors_headers(self) -> None:
+                """Add CORS headers so browser-based apps (Lovable.dev, React…)
+                can call this server without a proxy."""
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header(
+                    "Access-Control-Allow-Methods",
+                    "GET, POST, OPTIONS",
+                )
+                self.send_header(
+                    "Access-Control-Allow-Headers",
+                    "Content-Type, X-Media-Metadata",
+                )
 
             def log_message(self, fmt: str, *args: object) -> None:
                 pass  # suppress default per-request logging

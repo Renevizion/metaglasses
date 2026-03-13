@@ -2,11 +2,82 @@
 
 > **Python SDK for building apps on Ray-Ban Meta Smart Glasses (Generation 2)**
 
-`metaglasses` gives you a clean, high-level Python interface to the Ray-Ban
-Meta Smart Glasses.  It wraps the Bluetooth LE connection, media management,
-voice-command dispatch, and the Meta AI API into simple building blocks — plus
-a full **ready-to-run apps layer** that lets you spin up specialized apps as
-fast as you can think of them.
+---
+
+## 🤔 "I already build apps on Lovable.dev / I have GitHub repos — what is this for?"
+
+Good question.  **This is the backend your app connects to.**
+
+You build your UI somewhere else (Lovable.dev, React, Next.js, whatever).
+This repo is the Python service that runs alongside it and handles everything
+glasses-related: taking photos, recording video, talking to Meta AI, managing
+media, and streaming live video.  Your frontend calls it with ordinary
+`fetch()` (JavaScript) or any HTTP library.
+
+```
+Your App (Lovable.dev, React, any web / mobile frontend)
+   │  fetch("http://localhost:8765/capture/photo", {method: "POST"})
+   │  fetch("http://localhost:8765/ai/chat", {method: "POST", body: …})
+   ▼
+metaglasses bridge server  ← one terminal, one Python command
+   │  glasses.take_photo()  /  ai.chat(message)  /  …
+   ▼
+Ray-Ban Meta Smart Glasses
+```
+
+### Start the backend in one command
+
+```bash
+pip install -e .
+python examples/mobile_bridge.py   # server starts on http://localhost:8765
+```
+
+### Call it from your Lovable.dev app (plain JavaScript)
+
+```js
+const BASE = "http://localhost:8765";
+
+// Check that the glasses are connected
+const status = await fetch(`${BASE}/status`).then(r => r.json());
+console.log(`Battery: ${status.battery_pct}%`);
+
+// Take a photo
+const { media_id } = await fetch(`${BASE}/capture/photo`, {
+  method: "POST"
+}).then(r => r.json());
+
+// Ask Meta AI a question and get the answer back
+const { text } = await fetch(`${BASE}/ai/chat`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ message: "What restaurants are nearby?" })
+}).then(r => r.json());
+
+// Start / stop video recording
+await fetch(`${BASE}/capture/video/start`, { method: "POST" });
+await fetch(`${BASE}/capture/video/stop`,  { method: "POST" });
+```
+
+The server responds with JSON and includes `Access-Control-Allow-Origin: *`
+so browser-based apps can call it directly without a proxy.
+
+### Full REST API at a glance
+
+| Endpoint | Method | What it does | Response |
+|---|---|---|---|
+| `/health` | GET | Server is alive | `{"status":"ok"}` |
+| `/status` | GET | Glasses battery, firmware, mode… | `{"connected":true,"battery_pct":85,…}` |
+| `/capture/photo` | POST | Take a photo | `{"media_id":"abc123"}` |
+| `/capture/video/start` | POST | Start recording | `{}` |
+| `/capture/video/stop` | POST | Stop recording | `{"media_id":"abc123"}` |
+| `/ai/chat` | POST | Ask Meta AI; body `{"message":"…"}` | `{"text":"…","model":"…"}` |
+| `/event` | POST | Forward a raw glasses event (mobile SDK) | `{}` |
+| `/response` | GET | Poll for queued TTS replies | `{"responses":["…"]}` |
+
+> **Where to put the server:** run it on your laptop during development.
+> For production, run it on the same phone that's paired with your glasses
+> (Android via [Termux](https://f-droid.org/packages/com.termux/)).  Either way,
+> your frontend just needs to point at the right IP address.
 
 ---
 
@@ -38,28 +109,37 @@ real Bluetooth wiring, and practical workarounds.
 
 ---
 
+`metaglasses` gives you a clean, high-level Python interface to the Ray-Ban
+Meta Smart Glasses.  It wraps the Bluetooth LE connection, media management,
+voice-command dispatch, and the Meta AI API into simple building blocks — plus
+a full **ready-to-run apps layer** that lets you spin up specialized apps as
+fast as you can think of them.
+
+---
+
 ## Table of Contents
 
-1. [🚀 How to launch this](#-how-to-launch-this)
-2. [Hardware overview](#hardware-overview)
-3. [**Real-world setup guide →**](SETUP_GUIDE.md)
-4. [Apps — the fast way to build](#apps--the-fast-way-to-build)
+1. [🤔 I already build apps elsewhere — what is this?](#-i-already-build-apps-on-loveabledev--i-have-github-repos--what-is-this-for)
+2. [🚀 How to launch this](#-how-to-launch-this)
+3. [Hardware overview](#hardware-overview)
+4. [**Real-world setup guide →**](SETUP_GUIDE.md)
+5. [Apps — the fast way to build](#apps--the-fast-way-to-build)
    - [Built-in apps](#built-in-apps)
    - [Livestream to one or all platforms](#livestream-to-one-or-all-platforms)
    - [Rapid-fire custom apps with QuickApp](#rapid-fire-custom-apps-with-quickapp)
    - [AppRunner — manage many apps at once](#apprunner--manage-many-apps-at-once)
-5. [Core SDK usage](#core-sdk-usage)
+6. [Core SDK usage](#core-sdk-usage)
    - [Connecting to the glasses](#connecting-to-the-glasses)
    - [Capturing photos & videos](#capturing-photos--videos)
    - [Managing media](#managing-media)
    - [Voice commands](#voice-commands)
    - [Meta AI integration](#meta-ai-integration)
-6. [Examples](#examples)
-7. [Development setup](#development-setup)
-8. [Architecture](#architecture)
-9. [Roadmap](#roadmap)
-10. [Contributing](#contributing)
-11. [License](#license)
+7. [Examples](#examples)
+8. [Development setup](#development-setup)
+9. [Architecture](#architecture)
+10. [Roadmap](#roadmap)
+11. [Contributing](#contributing)
+12. [License](#license)
 
 ---
 

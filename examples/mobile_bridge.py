@@ -65,8 +65,32 @@ API_KEY = os.environ.get("META_AI_API_KEY", "")
 # ---------------------------------------------------------------------------
 
 glasses = Glasses(on_event=lambda e: print(f"[glasses event] {e}"))
+
+# Build AI client if a key was provided.  Passed to MobileBridge so that the
+# POST /ai/chat REST endpoint works automatically for any app (Lovable.dev, etc.)
+ai = (
+    MetaAIClient(
+        api_key=API_KEY,
+        system_prompt=(
+            "You are a helpful assistant running on smart glasses. "
+            "Give concise answers of 1-2 sentences."
+        ),
+    )
+    if API_KEY
+    else None
+)
+
+if ai:
+    print("Meta AI connected — POST /ai/chat is ready.")
+else:
+    print(
+        "Tip: set META_AI_API_KEY=your-key to enable POST /ai/chat.\n"
+        "     Photo, video, status, and event endpoints work without it."
+    )
+
 bridge = MobileBridge(
     glasses,
+    ai=ai,
     host=HOST,
     port=PORT,
     on_media=lambda data, meta: print(
@@ -112,33 +136,6 @@ def rec_stop(ctx):
 
 handler.start()
 print("Voice command handler started. Waiting for events from mobile app…")
-
-# ---------------------------------------------------------------------------
-# Optional: wire up Meta AI
-# ---------------------------------------------------------------------------
-
-if API_KEY:
-    ai = MetaAIClient(
-        api_key=API_KEY,
-        system_prompt=(
-            "You are a helpful assistant running on smart glasses. "
-            "Give concise answers of 1-2 sentences."
-        ),
-    )
-
-    @handler.command("ask meta", pattern=r"ask(?:\s+meta)?[,\s]+(.+)")
-    def ask_meta(ctx):
-        question = ctx.get("matched_text", "")
-        response = ai.chat(question)
-        print(f"[AI] {response.text}")
-        bridge.send_response(response.text)
-
-    print("Meta AI connected.")
-else:
-    print(
-        "Tip: set META_AI_API_KEY=your-key to enable AI voice responses.\n"
-        "     Voice commands for photo, video, and events still work without it."
-    )
 
 # ---------------------------------------------------------------------------
 # Keep running until interrupted
