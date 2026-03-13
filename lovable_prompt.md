@@ -177,3 +177,44 @@ A scrollable list showing the last 50 actions, newest first:
   component unmount.
 - No authentication is required — the server is intentionally open on the
   local network.
+
+## PWA / iPhone installation (important — do not skip)
+
+The app must be installable as a **Progressive Web App (PWA)** so the user
+can tap "Add to Home Screen" in Safari on iPhone without needing Xcode or any
+native build tooling.  Make sure the generated project includes:
+
+1. **`<meta>` tags in `index.html`:**
+   ```html
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+   <meta name="apple-mobile-web-app-capable" content="yes" />
+   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+   <meta name="apple-mobile-web-app-title" content="Meta Glasses" />
+   <link rel="apple-touch-icon" href="/icon-192.png" />
+   ```
+
+2. **A `manifest.json` (or `manifest.webmanifest`) linked in `index.html`:**
+   ```json
+   {
+     "name": "Meta Glasses",
+     "short_name": "Glasses",
+     "start_url": "/",
+     "display": "standalone",
+     "background_color": "#0f0f0f",
+     "theme_color": "#0082fb",
+     "icons": [
+       { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+       { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+     ]
+   }
+   ```
+   Generate simple placeholder icons (a dark square with the Meta "M" or a
+   glasses emoji) if no custom artwork is provided.
+
+3. **Full-screen layout** — the root `<div>` should be `min-height: 100dvh`
+   and avoid fixed-pixel heights that break on notch/dynamic-island iPhones.
+   Use `env(safe-area-inset-*)` padding where needed.
+
+When a user opens the published Lovable URL in Safari on iPhone and taps
+Share → "Add to Home Screen", the app should launch full-screen with no
+browser chrome, exactly like a native app.

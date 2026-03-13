@@ -121,6 +121,48 @@ Or just open <http://localhost:8765/health> in your browser.
 > ```
 > The `/ai/chat` endpoint will then return real AI responses.
 
+### 📱 Getting the Lovable app onto your iPhone (no Xcode, no MobaJump needed)
+
+The Lovable.dev app is a **web app** — it runs in any browser, including
+Safari on your iPhone.  You do **not** need Xcode, a Mac, or MobaJump for
+this part.
+
+**Steps:**
+
+1. In Lovable.dev click **Share → Publish**.  Your app gets a URL like
+   `https://your-project.lovable.app`.
+
+2. Open that URL in **Safari** on your iPhone (it must be Safari for the
+   "Add to Home Screen" option to appear).
+
+3. Tap the **Share icon** (box with an arrow) at the bottom of Safari.
+
+4. Scroll down and tap **"Add to Home Screen"**.
+
+5. Give it a name (e.g. *"Meta Glasses"*) and tap **Add**.
+
+The app now appears on your home screen like a native app — full screen, no
+browser chrome.  It opens straight to the dashboard.
+
+**Before you do step 1**, make sure `BASE_URL` in the generated code points
+to your server's address on your local network (e.g. `http://192.168.1.42:8765`),
+not `localhost`, because your iPhone and your laptop need to share the same
+Wi-Fi network.
+
+> **What about MobaJump?**
+>
+> MobaJump ([mobajump.com](https://mobajump.com)) is a sideloading service for
+> **native iOS `.ipa` files** — apps built with Swift/Xcode that you want to
+> install on your iPhone without a paid Apple Developer account or a newer Mac.
+>
+> You do **not** need it for the Lovable dashboard (that's a web app, not an
+> `.ipa`).  MobaJump becomes relevant later if you build a native MWDAT bridge
+> companion app in Swift that talks to the glasses over Bluetooth — that's the
+> Phase 5 path in [SETUP_GUIDE.md](SETUP_GUIDE.md#phase-5--connect-via-the-official-meta-mobile-sdk-mwdat).
+> At that point you'd build the `.ipa` on any machine (even a CI service) and
+> use MobaJump to sideload it onto your phone.  Until then, the web-app PWA
+> path above is all you need.
+
 ---
 
 ## Path B — Connect your glasses right now
