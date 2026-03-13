@@ -2,11 +2,86 @@
 
 > **Python SDK for building apps on Ray-Ban Meta Smart Glasses (Generation 2)**
 
-`metaglasses` gives you a clean, high-level Python interface to the Ray-Ban
-Meta Smart Glasses.  It wraps the Bluetooth LE connection, media management,
-voice-command dispatch, and the Meta AI API into simple building blocks — plus
-a full **ready-to-run apps layer** that lets you spin up specialized apps as
-fast as you can think of them.
+> 👉 **New here?** See **[GETTING_STARTED.md](GETTING_STARTED.md)** — it answers
+> *"what do I do now?"* with step-by-step paths for building a Lovable.dev app
+> **or** wiring up your glasses directly.
+
+---
+
+## 🤔 "I already build apps on Lovable.dev / I have GitHub repos — what is this for?"
+
+Good question.  **This is the backend your app connects to.**
+
+You build your UI somewhere else (Lovable.dev, React, Next.js, whatever).
+This repo is the Python service that runs alongside it and handles everything
+glasses-related: taking photos, recording video, talking to Meta AI, managing
+media, and streaming live video.  Your frontend calls it with ordinary
+`fetch()` (JavaScript) or any HTTP library.
+
+```
+Your App (Lovable.dev, React, any web / mobile frontend)
+   │  fetch("http://localhost:8765/capture/photo", {method: "POST"})
+   │  fetch("http://localhost:8765/ai/chat", {method: "POST", body: …})
+   ▼
+metaglasses bridge server  ← one terminal, one Python command
+   │  glasses.take_photo()  /  ai.chat(message)  /  …
+   ▼
+Ray-Ban Meta Smart Glasses
+```
+
+### Start the backend in one command
+
+```bash
+pip install -e .
+python examples/mobile_bridge.py   # server starts on http://localhost:8765
+```
+
+### Call it from your Lovable.dev app (plain JavaScript)
+
+```js
+const BASE = "http://localhost:8765";
+
+// Check that the glasses are connected
+const status = await fetch(`${BASE}/status`).then(r => r.json());
+console.log(`Battery: ${status.battery_pct}%`);
+
+// Take a photo
+const { media_id } = await fetch(`${BASE}/capture/photo`, {
+  method: "POST"
+}).then(r => r.json());
+
+// Ask Meta AI a question and get the answer back
+const { text } = await fetch(`${BASE}/ai/chat`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ message: "What restaurants are nearby?" })
+}).then(r => r.json());
+
+// Start / stop video recording
+await fetch(`${BASE}/capture/video/start`, { method: "POST" });
+await fetch(`${BASE}/capture/video/stop`,  { method: "POST" });
+```
+
+The server responds with JSON and includes `Access-Control-Allow-Origin: *`
+so browser-based apps can call it directly without a proxy.
+
+### Full REST API at a glance
+
+| Endpoint | Method | What it does | Response |
+|---|---|---|---|
+| `/health` | GET | Server is alive | `{"status":"ok"}` |
+| `/status` | GET | Glasses battery, firmware, mode… | `{"connected":true,"battery_pct":85,…}` |
+| `/capture/photo` | POST | Take a photo | `{"media_id":"abc123"}` |
+| `/capture/video/start` | POST | Start recording | `{}` |
+| `/capture/video/stop` | POST | Stop recording | `{"media_id":"abc123"}` |
+| `/ai/chat` | POST | Ask Meta AI; body `{"message":"…"}` | `{"text":"…","model":"…"}` |
+| `/event` | POST | Forward a raw glasses event (mobile SDK) | `{}` |
+| `/response` | GET | Poll for queued TTS replies | `{"responses":["…"]}` |
+
+> **Where to put the server:** run it on your laptop during development.
+> For production, run it on the same phone that's paired with your glasses
+> (Android via [Termux](https://f-droid.org/packages/com.termux/)).  Either way,
+> your frontend just needs to point at the right IP address.
 
 ---
 
@@ -38,28 +113,38 @@ real Bluetooth wiring, and practical workarounds.
 
 ---
 
+`metaglasses` gives you a clean, high-level Python interface to the Ray-Ban
+Meta Smart Glasses.  It wraps the Bluetooth LE connection, media management,
+voice-command dispatch, and the Meta AI API into simple building blocks — plus
+a full **ready-to-run apps layer** that lets you spin up specialized apps as
+fast as you can think of them.
+
+---
+
 ## Table of Contents
 
-1. [🚀 How to launch this](#-how-to-launch-this)
-2. [Hardware overview](#hardware-overview)
-3. [**Real-world setup guide →**](SETUP_GUIDE.md)
-4. [Apps — the fast way to build](#apps--the-fast-way-to-build)
+1. [👉 **Getting started guide →**](GETTING_STARTED.md) — what to do right now (Lovable.dev path or glasses path)
+2. [🤔 I already build apps elsewhere — what is this?](#-i-already-build-apps-on-loveabledev--i-have-github-repos--what-is-this-for)
+3. [🚀 How to launch this](#-how-to-launch-this)
+4. [Hardware overview](#hardware-overview)
+5. [**Real-world setup guide →**](SETUP_GUIDE.md)
+6. [Apps — the fast way to build](#apps--the-fast-way-to-build)
    - [Built-in apps](#built-in-apps)
    - [Livestream to one or all platforms](#livestream-to-one-or-all-platforms)
    - [Rapid-fire custom apps with QuickApp](#rapid-fire-custom-apps-with-quickapp)
    - [AppRunner — manage many apps at once](#apprunner--manage-many-apps-at-once)
-5. [Core SDK usage](#core-sdk-usage)
+7. [Core SDK usage](#core-sdk-usage)
    - [Connecting to the glasses](#connecting-to-the-glasses)
    - [Capturing photos & videos](#capturing-photos--videos)
    - [Managing media](#managing-media)
    - [Voice commands](#voice-commands)
    - [Meta AI integration](#meta-ai-integration)
-6. [Examples](#examples)
-7. [Development setup](#development-setup)
-8. [Architecture](#architecture)
-9. [Roadmap](#roadmap)
-10. [Contributing](#contributing)
-11. [License](#license)
+8. [Examples](#examples)
+9. [Development setup](#development-setup)
+10. [Architecture](#architecture)
+11. [Roadmap](#roadmap)
+12. [Contributing](#contributing)
+13. [License](#license)
 
 ---
 
@@ -261,6 +346,8 @@ runner.unregister("pricing")
 
 ### Connecting to the glasses
 
+**Simulation mode** (no hardware needed — for development and testing):
+
 ```python
 from metaglasses import Glasses
 
@@ -275,6 +362,36 @@ print(f"Captured photo: {media_id}")
 
 glasses.disconnect()
 ```
+
+**Mobile bridge mode** (connect to real glasses via your iOS/Android app):
+
+Meta's glasses communicate through the Meta AI app on your phone, not via a
+public Bluetooth API.  The `MobileBridge` class bridges your iOS/Android app
+(which uses the official MWDAT SDK) to this Python SDK over HTTP:
+
+```python
+from metaglasses import Glasses, MobileBridge
+
+glasses = Glasses()
+bridge = MobileBridge(glasses, host="0.0.0.0", port=8765)
+bridge.start()
+
+# Mark glasses as connected via the mobile bridge
+glasses.connect_via_bridge(bridge)
+
+# All SDK features now work — driven by real events from your glasses
+# (forwarded by your mobile app to http://<this-host>:8765/event)
+
+# Send a TTS reply back to the glasses speaker via the mobile app
+bridge.send_response("Hello from Python!")
+
+glasses.disconnect()
+bridge.stop()
+```
+
+See [`examples/mobile_bridge.py`](examples/mobile_bridge.py) for a full
+runnable example, and [SETUP_GUIDE.md — Phase 5](SETUP_GUIDE.md#phase-5--connect-via-the-official-meta-mobile-sdk-mwdat)
+for iOS and Android mobile app integration code.
 
 ---
 
@@ -454,6 +571,7 @@ Ready-to-run example scripts live in the [`examples/`](examples/) folder:
 | [`livestream_app.py`](examples/livestream_app.py) | Stream to one or all platforms at once |
 | [`recorder_app.py`](examples/recorder_app.py) | Record auto-named clips with session tracking |
 | [`quick_apps.py`](examples/quick_apps.py) | Rapid-fire 5 specialized apps in ~30 lines |
+| [`mobile_bridge.py`](examples/mobile_bridge.py) | HTTP bridge server for iOS/Android companion app |
 
 Run any example with:
 
@@ -495,6 +613,7 @@ metaglasses/
 ├── media.py            # Photo / video listing, download & deletion
 ├── voice.py            # Voice-command registration & dispatch
 ├── ai.py               # Meta AI API client (chat, streaming, vision)
+├── bridge.py           # MobileBridge — HTTP server for the iOS/Android companion app
 └── apps/
     ├── __init__.py     # App base class + AppRunner registry
     ├── pricing.py      # PricingApp  — price lookups
@@ -514,7 +633,8 @@ examples/
 ├── outreach_app.py
 ├── livestream_app.py
 ├── recorder_app.py
-└── quick_apps.py       # ← start here to see rapid app creation
+├── quick_apps.py       # ← start here to see rapid app creation
+└── mobile_bridge.py    # ← bridge server for iOS/Android companion app
 
 tests/
 ├── conftest.py
@@ -522,7 +642,8 @@ tests/
 ├── test_media.py
 ├── test_voice.py
 ├── test_ai.py
-└── test_apps.py        # covers all 5 apps + QuickApp + AppRunner
+├── test_apps.py        # covers all 5 apps + QuickApp + AppRunner
+└── test_bridge.py      # covers MobileBridge HTTP server
 ```
 
 The SDK is transport-agnostic.  The `glasses.py` module contains clearly-marked
@@ -539,7 +660,7 @@ replace with real `bleak` Bluetooth LE calls once you have hardware available.
 - [ ] Text-to-speech playback through the glasses speaker
 - [ ] Async (`asyncio`) API
 - [ ] CLI tool (`metaglasses status`, `metaglasses download-all`, …)
-- [ ] Companion Android/iOS helper app for bridging BLE ↔ Wi-Fi
+- [x] Companion Android/iOS helper app for bridging BLE ↔ Wi-Fi (`MobileBridge`)
 - [ ] More built-in apps: `TranslatorApp`, `NavigationApp`, `CalendarApp`, `ShoppingApp`
 - [ ] Restream.io / relay auto-provisioning for multi-platform live
 

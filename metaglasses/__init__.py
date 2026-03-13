@@ -22,6 +22,7 @@ from .apps.outreach import OutreachApp, OutreachItem
 from .apps.livestream import LivestreamApp, Platform, StreamSession
 from .apps.recorder import RecorderApp, Clip
 from .apps.factory import QuickApp, quick_app
+from .bridge import MobileBridge
 
 __version__ = "0.2.0"
 __all__ = [
@@ -50,4 +51,6 @@ __all__ = [
     # Rapid app factory
     "QuickApp",
     "quick_app",
+    # Mobile bridge
+    "MobileBridge",
 ]

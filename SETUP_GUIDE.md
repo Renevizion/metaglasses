@@ -17,9 +17,10 @@
 4. [Phase 2 — Get it running on your Android phone](#phase-2--get-it-running-on-your-android-phone)
 5. [Phase 3 — Wire in your real API keys](#phase-3--wire-in-your-real-api-keys)
 6. [Phase 4 — Bridge to your actual glasses (the hard part)](#phase-4--bridge-to-your-actual-glasses-the-hard-part)
-7. [What each built-in app needs to go real](#what-each-built-in-app-needs-to-go-real)
-8. [Workarounds that work today without Phase 4](#workarounds-that-work-today-without-phase-4)
-9. [FAQ](#faq)
+7. [Phase 5 — Connect via the official Meta Mobile SDK (MWDAT)](#phase-5--connect-via-the-official-meta-mobile-sdk-mwdat)
+8. [What each built-in app needs to go real](#what-each-built-in-app-needs-to-go-real)
+9. [Workarounds that work today without Phase 4](#workarounds-that-work-today-without-phase-4)
+10. [FAQ](#faq)
 
 ---
 
@@ -35,6 +36,7 @@ Here is exactly what the SDK does today vs. what still needs work:
 | Voice command logic | ✅ **Works now** | Dispatch / matching / callbacks all work; audio capture is stubbed |
 | Outreach (messages, email, calls) | ✅ **Works now** | Needs you to wire `on_send` to your own messaging backend (Twilio, SMTP, etc.) |
 | Run on Android phone | ✅ **Works now** | Via Termux — see Phase 2 |
+| Receive real events via mobile app bridge | ✅ **Works now** | `MobileBridge` HTTP server — see Phase 5 |
 | Bluetooth connection to real glasses | ⚠️ **Stubbed** | `_discover()` always returns `True`; real BLE calls are not implemented yet |
 | Auto photo/video trigger from glasses | ⚠️ **Stubbed** | `take_photo()` / `start_video()` exist but don't send real BLE commands yet |
 | Live audio capture from glasses mic | ⚠️ **Stubbed** | `_listen_loop()` idles; real audio feed not wired up yet |
@@ -42,7 +44,8 @@ Here is exactly what the SDK does today vs. what still needs work:
 
 **Bottom line:** You can build, test, and run every app's logic end-to-end right
 now.  The last mile — actual Bluetooth commands to the glasses — requires the
-BLE bridge work described in Phase 4.
+BLE bridge work described in Phase 4, or the official MWDAT mobile SDK path
+described in Phase 5.
 
 ---
 
@@ -419,6 +422,217 @@ it rather than replacing it:
                print(result["answer"])
        time.sleep(2)
    ```
+
+---
+
+## Phase 5 — Connect via the official Meta Mobile SDK (MWDAT)
+
+This is the **recommended path** for connecting to your physical glasses
+right now.  Meta's official **Wearables Device Access Toolkit (MWDAT)** is
+a mobile SDK for iOS (Swift) and Android (Kotlin/Java).  The glasses
+communicate securely through the **Meta AI app** on your phone, which acts
+as a bridge — Python cannot connect to the glasses directly over Bluetooth.
+
+The solution is a two-tier architecture:
+
+```
+Glasses  ←BLE/MWDAT→  Mobile App (iOS / Android)
+                              ↓  HTTP POST  (same Wi-Fi)
+                       MobileBridge  (Python — this SDK)
+                              ↓  Python API
+                       VoiceCommandHandler / MetaAIClient / Apps
+```
+
+The `MobileBridge` class included in this SDK implements the Python side of
+that bridge.  It starts an HTTP server that your mobile app POSTs glasses
+events to.
+
+### Step 1 — Enable Developer Mode on your phone
+
+Before writing any code, put the Meta AI app into Developer Mode:
+
+1. Open the **Meta AI app** on your iOS or Android phone.
+2. Ensure your glasses are connected and updated (v20+ for Ray-Ban Meta).
+3. Go to **Settings > App Info**.
+4. Tap the **App version number 5 times**.
+5. A toggle for **Developer Mode** will appear.  Turn it on.
+
+### Step 2 — Create a Meta Developer project
+
+1. Go to [developers.meta.com](https://developers.meta.com) and sign in.
+2. Create a new app (e.g. "Food Near Me").
+3. Under **App Configuration**, click **Add app details** and provide your iOS
+   Bundle ID (e.g. `com.yourcompany.foodnearme`) or Android Package Name.
+4. Under **Permissions**, request the **Camera** permission with a short
+   rationale.
+5. Note your **App ID** and **Client Token** — you'll need them in Step 3.
+
+### Step 3 — Set up your iOS mobile app
+
+**Prerequisites:** Xcode 15+, an Apple Developer account, an Apple Team ID.
+
+1. Create a new **iOS App** project in Xcode.
+2. Add the Meta SDK via Swift Package Manager:
+   `https://github.com/facebook/meta-wearables-dat-ios`
+3. Update your `Info.plist` with your project credentials:
+
+```xml
+<key>MWDAT</key>
+<dict>
+    <key>AppLinkURLScheme</key>
+    <string>foodnearme://</string>
+    <key>MetaAppID</key>
+    <string>YOUR_META_APP_ID</string>
+    <key>ClientToken</key>
+    <string>AR|YOUR_META_APP_ID|YOUR_CLIENT_TOKEN</string>
+    <key>TeamID</key>
+    <string>YOUR_APPLE_TEAM_ID</string>
+</dict>
+```
+
+You also need to add to `Info.plist`:
+- `CFBundleURLTypes` with your `foodnearme://` URL scheme
+- `UISupportedExternalAccessoryProtocols` (see Meta docs)
+- `UIBackgroundModes` → `external-accessory`
+
+4. In your `AppDelegate` / `@main` struct, initialise the SDK and start
+   the registration flow:
+
+```swift
+import MWDATCore
+
+// On app launch
+try? Wearables.configure()
+
+// On a "Connect Glasses" button tap
+try? Wearables.shared.startRegistration()
+// This deep-links to the Meta AI app for permission,
+// then bounces back to your app.
+```
+
+5. Forward every `WearablesEvent` to the Python bridge server:
+
+```swift
+import MWDATCore
+
+func onWearablesEvent(_ event: WearablesEvent) {
+    // Serialise to a plain dictionary and POST to the bridge
+    guard let url = URL(string: "http://192.168.1.x:8765/event") else { return }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try? JSONEncoder().encode(event.asDictionary())
+    URLSession.shared.dataTask(with: request).resume()
+}
+
+// For captured photos / videos:
+func onMediaCaptured(_ data: Data, metadata: [String: Any]) {
+    guard let url = URL(string: "http://192.168.1.x:8765/media") else { return }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+    if let metaJson = try? JSONSerialization.data(withJSONObject: metadata) {
+        request.setValue(String(data: metaJson, encoding: .utf8),
+                         forHTTPHeaderField: "X-Media-Metadata")
+    }
+    request.httpBody = data
+    URLSession.shared.dataTask(with: request).resume()
+}
+
+// Poll for AI replies to speak through the glasses:
+func pollForResponses() {
+    guard let url = URL(string: "http://192.168.1.x:8765/response") else { return }
+    URLSession.shared.dataTask(with: url) { data, _, _ in
+        guard let data = data,
+              let json = try? JSONDecoder().decode([String: [String]].self, from: data),
+              let responses = json["responses"] else { return }
+        for text in responses {
+            // Route to on-device TTS or glasses speaker
+            self.speak(text)
+        }
+    }.resume()
+}
+```
+
+### Step 4 — Set up your Android mobile app
+
+1. Create a new **Android App** project in Android Studio.
+2. Add the Meta Wearables SDK dependency to your `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("com.facebook.meta:wearables-dat-android:1.+")
+}
+```
+
+3. Add to `AndroidManifest.xml`:
+
+```xml
+<meta-data android:name="com.facebook.sdk.ApplicationId"
+           android:value="YOUR_META_APP_ID" />
+<meta-data android:name="com.facebook.sdk.ClientToken"
+           android:value="AR|YOUR_META_APP_ID|YOUR_CLIENT_TOKEN" />
+```
+
+4. Initialise and register:
+
+```kotlin
+import com.facebook.wearables.Wearables
+
+// In Application.onCreate()
+Wearables.configure(this)
+
+// On button tap to connect glasses
+Wearables.getInstance().startRegistration(this)
+```
+
+5. Forward events to the Python bridge:
+
+```kotlin
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+
+val client = OkHttpClient()
+
+fun forwardEvent(eventJson: String) {
+    val body = eventJson.toRequestBody("application/json".toMediaType())
+    val request = Request.Builder()
+        .url("http://192.168.1.x:8765/event")
+        .post(body)
+        .build()
+    client.newCall(request).enqueue(object : Callback {
+        override fun onFailure(call: Call, e: IOException) { /* log */ }
+        override fun onResponse(call: Call, response: Response) { response.close() }
+    })
+}
+```
+
+### Step 5 — Start the Python bridge server
+
+On your laptop (or Android phone running Termux), run:
+
+```bash
+# Find your local IP address
+ip addr show | grep 'inet '       # Linux / Termux
+ifconfig | grep 'inet '           # macOS
+
+# Start the bridge (replace the IP in your mobile app with this address)
+META_AI_API_KEY=your-key python examples/mobile_bridge.py
+```
+
+The bridge starts an HTTP server on port 8765 and marks the `Glasses`
+instance as connected.  From here, all the usual `metaglasses` SDK features
+(voice commands, AI queries, apps, livestreaming) work exactly as described
+in the rest of this guide — but driven by real events from your glasses.
+
+### Bridge API reference
+
+| Endpoint | Method | Body | Description |
+|---|---|---|---|
+| `/health` | GET | — | Returns `{"status": "ok"}` |
+| `/event` | POST | JSON event dict | Forward a glasses event to Python |
+| `/media` | POST | Raw bytes | Forward captured photo/video bytes; set `X-Media-Metadata` header to a JSON dict |
+| `/response` | GET | — | Poll for AI/TTS replies queued by Python |
 
 ---
 
