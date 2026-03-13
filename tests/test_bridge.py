@@ -505,7 +505,26 @@ class TestAIChatEndpoint:
             body = json.loads(exc.read())
             assert "error" in body
 
-    def test_ai_chat_invalid_json_returns_400(self, bridge):
+    def test_ai_chat_invalid_json_returns_400(self):
+        # With an AI client configured, invalid JSON body → 400
+        b, _ai = self._make_bridge_with_ai()
+        try:
+            url = f"http://127.0.0.1:{b.port}/ai/chat"
+            req = urllib.request.Request(
+                url,
+                data=b"not json",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req)
+            pytest.fail("Expected HTTPError")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 400
+        finally:
+            b.stop()
+
+    def test_ai_chat_invalid_json_no_ai_returns_503(self, bridge):
+        # Without an AI client, the AI-missing check fires first → 503
         url = f"http://127.0.0.1:{bridge.port}/ai/chat"
         req = urllib.request.Request(
             url,
@@ -517,7 +536,7 @@ class TestAIChatEndpoint:
             urllib.request.urlopen(req)
             pytest.fail("Expected HTTPError")
         except urllib.error.HTTPError as exc:
-            assert exc.code in (400, 503)
+            assert exc.code == 503
 
 
 # ---------------------------------------------------------------------------

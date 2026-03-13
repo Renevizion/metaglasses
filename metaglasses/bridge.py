@@ -354,11 +354,14 @@ class MobileBridge:
                 try:
                     payload: Any = json.loads(body.decode())
                 except (json.JSONDecodeError, UnicodeDecodeError):
-                    self._error(400, "Request body must be JSON with a 'message' field.")
+                    self._error(400, "Invalid JSON in request body.")
                     return
                 message = (payload or {}).get("message", "")
                 if not message:
-                    self._error(400, "Missing 'message' field in request body.")
+                    self._error(
+                        400,
+                        "'message' field is required and must not be empty.",
+                    )
                     return
                 try:
                     response = bridge.ai.chat(message)
