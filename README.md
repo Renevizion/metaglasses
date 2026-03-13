@@ -2,6 +2,10 @@
 
 > **Python SDK for building apps on Ray-Ban Meta Smart Glasses (Generation 2)**
 
+> 👉 **New here?** See **[GETTING_STARTED.md](GETTING_STARTED.md)** — it answers
+> *"what do I do now?"* with step-by-step paths for building a Lovable.dev app
+> **or** wiring up your glasses directly.
+
 ---
 
 ## 🤔 "I already build apps on Lovable.dev / I have GitHub repos — what is this for?"
@@ -119,27 +123,28 @@ fast as you can think of them.
 
 ## Table of Contents
 
-1. [🤔 I already build apps elsewhere — what is this?](#-i-already-build-apps-on-loveabledev--i-have-github-repos--what-is-this-for)
-2. [🚀 How to launch this](#-how-to-launch-this)
-3. [Hardware overview](#hardware-overview)
-4. [**Real-world setup guide →**](SETUP_GUIDE.md)
-5. [Apps — the fast way to build](#apps--the-fast-way-to-build)
+1. [👉 **Getting started guide →**](GETTING_STARTED.md) — what to do right now (Lovable.dev path or glasses path)
+2. [🤔 I already build apps elsewhere — what is this?](#-i-already-build-apps-on-loveabledev--i-have-github-repos--what-is-this-for)
+3. [🚀 How to launch this](#-how-to-launch-this)
+4. [Hardware overview](#hardware-overview)
+5. [**Real-world setup guide →**](SETUP_GUIDE.md)
+6. [Apps — the fast way to build](#apps--the-fast-way-to-build)
    - [Built-in apps](#built-in-apps)
    - [Livestream to one or all platforms](#livestream-to-one-or-all-platforms)
    - [Rapid-fire custom apps with QuickApp](#rapid-fire-custom-apps-with-quickapp)
    - [AppRunner — manage many apps at once](#apprunner--manage-many-apps-at-once)
-6. [Core SDK usage](#core-sdk-usage)
+7. [Core SDK usage](#core-sdk-usage)
    - [Connecting to the glasses](#connecting-to-the-glasses)
    - [Capturing photos & videos](#capturing-photos--videos)
    - [Managing media](#managing-media)
    - [Voice commands](#voice-commands)
    - [Meta AI integration](#meta-ai-integration)
-7. [Examples](#examples)
-8. [Development setup](#development-setup)
-9. [Architecture](#architecture)
-10. [Roadmap](#roadmap)
-11. [Contributing](#contributing)
-12. [License](#license)
+8. [Examples](#examples)
+9. [Development setup](#development-setup)
+10. [Architecture](#architecture)
+11. [Roadmap](#roadmap)
+12. [Contributing](#contributing)
+13. [License](#license)
 
 ---
 
