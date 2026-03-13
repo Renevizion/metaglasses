@@ -75,12 +75,15 @@ Android (Kotlin) example::
 from __future__ import annotations
 
 import json
+import logging
 import queue
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Callable, List, Optional
 
 from .glasses import Glasses
+
+_logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -255,10 +258,20 @@ class MobileBridge:
         """Parse an event POSTed by the mobile app and dispatch it."""
         try:
             event = json.loads(body.decode())
-        except (json.JSONDecodeError, UnicodeDecodeError):
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            _logger.warning(
+                "MobileBridge: received malformed event payload (%d bytes): %s",
+                len(body),
+                exc,
+            )
             return
         if isinstance(event, dict):
             self.glasses._dispatch_event(event)
+        else:
+            _logger.warning(
+                "MobileBridge: expected a JSON object for /event, got %s",
+                type(event).__name__,
+            )
 
     def _handle_media(self, body: bytes, metadata: dict) -> None:
         """Forward media bytes + metadata to the on_media callback."""

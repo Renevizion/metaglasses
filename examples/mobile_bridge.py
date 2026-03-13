@@ -135,7 +135,10 @@ if API_KEY:
 
     print("Meta AI connected.")
 else:
-    print("Tip: set META_AI_API_KEY to enable AI voice responses.")
+    print(
+        "Tip: set META_AI_API_KEY=your-key to enable AI voice responses.\n"
+        "     Voice commands for photo, video, and events still work without it."
+    )
 
 # ---------------------------------------------------------------------------
 # Keep running until interrupted

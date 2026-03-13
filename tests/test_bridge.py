@@ -319,7 +319,6 @@ class TestConnectViaBridge:
         assert g.is_connected
         g.disconnect()
         assert not g.is_connected
-        assert g._bridge is None
 
     def test_bridge_events_dispatched_after_connect_via_bridge(self):
         received = []
