@@ -261,6 +261,8 @@ runner.unregister("pricing")
 
 ### Connecting to the glasses
 
+**Simulation mode** (no hardware needed — for development and testing):
+
 ```python
 from metaglasses import Glasses
 
@@ -275,6 +277,36 @@ print(f"Captured photo: {media_id}")
 
 glasses.disconnect()
 ```
+
+**Mobile bridge mode** (connect to real glasses via your iOS/Android app):
+
+Meta's glasses communicate through the Meta AI app on your phone, not via a
+public Bluetooth API.  The `MobileBridge` class bridges your iOS/Android app
+(which uses the official MWDAT SDK) to this Python SDK over HTTP:
+
+```python
+from metaglasses import Glasses, MobileBridge
+
+glasses = Glasses()
+bridge = MobileBridge(glasses, host="0.0.0.0", port=8765)
+bridge.start()
+
+# Mark glasses as connected via the mobile bridge
+glasses.connect_via_bridge(bridge)
+
+# All SDK features now work — driven by real events from your glasses
+# (forwarded by your mobile app to http://<this-host>:8765/event)
+
+# Send a TTS reply back to the glasses speaker via the mobile app
+bridge.send_response("Hello from Python!")
+
+glasses.disconnect()
+bridge.stop()
+```
+
+See [`examples/mobile_bridge.py`](examples/mobile_bridge.py) for a full
+runnable example, and [SETUP_GUIDE.md — Phase 5](SETUP_GUIDE.md#phase-5--connect-via-the-official-meta-mobile-sdk-mwdat)
+for iOS and Android mobile app integration code.
 
 ---
 
@@ -454,6 +486,7 @@ Ready-to-run example scripts live in the [`examples/`](examples/) folder:
 | [`livestream_app.py`](examples/livestream_app.py) | Stream to one or all platforms at once |
 | [`recorder_app.py`](examples/recorder_app.py) | Record auto-named clips with session tracking |
 | [`quick_apps.py`](examples/quick_apps.py) | Rapid-fire 5 specialized apps in ~30 lines |
+| [`mobile_bridge.py`](examples/mobile_bridge.py) | HTTP bridge server for iOS/Android companion app |
 
 Run any example with:
 
@@ -495,6 +528,7 @@ metaglasses/
 ├── media.py            # Photo / video listing, download & deletion
 ├── voice.py            # Voice-command registration & dispatch
 ├── ai.py               # Meta AI API client (chat, streaming, vision)
+├── bridge.py           # MobileBridge — HTTP server for the iOS/Android companion app
 └── apps/
     ├── __init__.py     # App base class + AppRunner registry
     ├── pricing.py      # PricingApp  — price lookups
@@ -514,7 +548,8 @@ examples/
 ├── outreach_app.py
 ├── livestream_app.py
 ├── recorder_app.py
-└── quick_apps.py       # ← start here to see rapid app creation
+├── quick_apps.py       # ← start here to see rapid app creation
+└── mobile_bridge.py    # ← bridge server for iOS/Android companion app
 
 tests/
 ├── conftest.py
@@ -522,7 +557,8 @@ tests/
 ├── test_media.py
 ├── test_voice.py
 ├── test_ai.py
-└── test_apps.py        # covers all 5 apps + QuickApp + AppRunner
+├── test_apps.py        # covers all 5 apps + QuickApp + AppRunner
+└── test_bridge.py      # covers MobileBridge HTTP server
 ```
 
 The SDK is transport-agnostic.  The `glasses.py` module contains clearly-marked
@@ -539,7 +575,7 @@ replace with real `bleak` Bluetooth LE calls once you have hardware available.
 - [ ] Text-to-speech playback through the glasses speaker
 - [ ] Async (`asyncio`) API
 - [ ] CLI tool (`metaglasses status`, `metaglasses download-all`, …)
-- [ ] Companion Android/iOS helper app for bridging BLE ↔ Wi-Fi
+- [x] Companion Android/iOS helper app for bridging BLE ↔ Wi-Fi (`MobileBridge`)
 - [ ] More built-in apps: `TranslatorApp`, `NavigationApp`, `CalendarApp`, `ShoppingApp`
 - [ ] Restream.io / relay auto-provisioning for multi-platform live
 

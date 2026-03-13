@@ -25,7 +25,10 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
+
+if TYPE_CHECKING:
+    from .bridge import MobileBridge
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +113,7 @@ class Glasses:
 
         self._connected: bool = False
         self._device_info: Optional[DeviceInfo] = None
+        self._bridge: Optional["MobileBridge"] = None
 
     # ------------------------------------------------------------------
     # Connection management
@@ -138,10 +142,41 @@ class Glasses:
             "Make sure the glasses are turned on and within Bluetooth range."
         )
 
+    def connect_via_bridge(self, bridge: "MobileBridge") -> None:
+        """Mark the glasses as connected via a :class:`~metaglasses.bridge.MobileBridge`.
+
+        Use this when you are running a mobile companion app (iOS / Android)
+        that forwards glasses events to the Python bridge server instead of
+        connecting directly over Bluetooth.
+
+        The bridge server must already be started with
+        :meth:`~metaglasses.bridge.MobileBridge.start` before calling this
+        method.
+
+        Parameters
+        ----------
+        bridge:
+            A running :class:`~metaglasses.bridge.MobileBridge` instance.
+
+        Raises
+        ------
+        RuntimeError
+            If *bridge* is not currently running.
+        """
+        if not bridge.is_running:
+            raise RuntimeError(
+                "The MobileBridge must be started before calling connect_via_bridge(). "
+                "Call bridge.start() first."
+            )
+        self._bridge = bridge
+        self._connected = True
+        self._device_info = self._fetch_device_info()
+
     def disconnect(self) -> None:
         """Close the Bluetooth connection gracefully."""
         self._connected = False
         self._device_info = None
+        self._bridge = None
 
     @property
     def is_connected(self) -> bool:
