@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Metaglasses — Setup Voice Guide</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f0f0f;
+      color: #e8e8e8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+               env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+    }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    header {
+      background: #111;
+      border-bottom: 1px solid #222;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #0082fb;
+      letter-spacing: 0.02em;
+      flex: 1;
+    }
+
+    /* ── Mute button — always big and obvious ─────────────────── */
+    #muteBtn {
+      background: #1a1a1a;
+      border: 2px solid #444;
+      color: #e8e8e8;
+      border-radius: 10px;
+      font-size: 1.6rem;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    #muteBtn:hover { border-color: #0082fb; background: #1e2a3a; }
+    #muteBtn.muted { border-color: #e53e3e; background: #1a0c0c; }
+
+    /* ── Progress bar ────────────────────────────────────────── */
+    #progressBar {
+      height: 3px;
+      background: #222;
+    }
+    #progressFill {
+      height: 100%;
+      background: #0082fb;
+      transition: width 0.3s ease;
+    }
+
+    /* ── Main content ────────────────────────────────────────── */
+    main {
+      flex: 1;
+      padding: 24px 20px 16px;
+      max-width: 680px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ── Current step card ───────────────────────────────────── */
+    #currentCard {
+      background: #1a1a1a;
+      border: 1px solid #0082fb55;
+      border-radius: 14px;
+      padding: 22px 24px;
+      margin-bottom: 28px;
+    }
+
+    #stepLabel {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #0082fb;
+      margin-bottom: 10px;
+    }
+
+    #stepTitle {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+      line-height: 1.35;
+    }
+
+    #stepDetail {
+      font-size: 0.92rem;
+      color: #aaa;
+      line-height: 1.6;
+    }
+
+    #stepDetail code {
+      background: #2a2a2a;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 0.88em;
+      color: #7ec8ff;
+      font-family: "SF Mono", "Fira Code", Consolas, monospace;
+    }
+
+    /* ── Nav buttons ─────────────────────────────────────────── */
+    .nav-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+
+    .nav-row button {
+      flex: 1;
+      padding: 12px 10px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .nav-row button:disabled { opacity: 0.3; cursor: default; }
+
+    #prevBtn { background: #2a2a2a; color: #e8e8e8; }
+    #prevBtn:not(:disabled):hover { background: #333; }
+
+    #readBtn { background: #0082fb; color: #fff; }
+    #readBtn:hover { background: #0070d8; }
+
+    #nextBtn { background: #0082fb; color: #fff; }
+    #nextBtn:not(:disabled):hover { background: #0070d8; }
+
+    /* ── All steps list ──────────────────────────────────────── */
+    #stepsList {
+      list-style: none;
+    }
+
+    #stepsList li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: background 0.12s;
+      border: 1px solid transparent;
+    }
+    #stepsList li:hover { background: #1a1a1a; }
+    #stepsList li.active {
+      background: #0f1e30;
+      border-color: #0082fb44;
+    }
+    #stepsList li.done .num { background: #0a3020; color: #34d399; }
+
+    .num {
+      background: #2a2a2a;
+      color: #888;
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+    #stepsList li.active .num { background: #0082fb; color: #fff; }
+
+    .step-text { font-size: 0.88rem; line-height: 1.45; color: #ccc; }
+    #stepsList li.active .step-text { color: #fff; font-weight: 500; }
+    #stepsList li.done .step-text { color: #666; text-decoration: line-through; }
+
+    /* ── Speaking indicator ──────────────────────────────────── */
+    #speakingDot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #0082fb;
+      margin-left: 8px;
+      vertical-align: middle;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #speakingDot.on { opacity: 1; animation: pulse 0.9s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%       { transform: scale(1.5); opacity: 0.5; }
+    }
+
+    /* ── Done banner ─────────────────────────────────────────── */
+    #doneBanner {
+      display: none;
+      background: #0a3020;
+      border: 1px solid #34d399;
+      border-radius: 14px;
+      padding: 20px 24px;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    #doneBanner h2 { color: #34d399; font-size: 1.3rem; margin-bottom: 6px; }
+    #doneBanner p  { color: #aaa; font-size: 0.9rem; }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      color: #444;
+      font-size: 0.75rem;
+      padding: 12px 20px 20px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ───────────────────────────────────────────────── -->
+<header>
+  <h1>🕶️ Metaglasses Setup Guide
+    <span id="speakingDot"></span>
+  </h1>
+  <button id="muteBtn" title="Mute / Unmute voice">🔊</button>
+</header>
+
+<!-- ── Progress bar ─────────────────────────────────────────── -->
+<div id="progressBar"><div id="progressFill"></div></div>
+
+<!-- ── Main ─────────────────────────────────────────────────── -->
+<main>
+
+  <!-- current step card -->
+  <div id="currentCard">
+    <div id="stepLabel"></div>
+    <div id="stepTitle"></div>
+    <div id="stepDetail"></div>
+  </div>
+
+  <!-- done banner (hidden until last step passed) -->
+  <div id="doneBanner">
+    <h2>✅ You're all set!</h2>
+    <p>Your Lovable app is running on your iPhone and talking to your Ray-Ban Meta glasses.
+       Say a voice command and watch it go.</p>
+  </div>
+
+  <!-- navigation -->
+  <div class="nav-row">
+    <button id="prevBtn">← Back</button>
+    <button id="readBtn">🔁 Read Again</button>
+    <button id="nextBtn">Next →</button>
+  </div>
+
+  <!-- all steps list -->
+  <ul id="stepsList"></ul>
+
+</main>
+
+<footer>Opens in any browser · no internet needed · uses your browser's built-in voice</footer>
+
+<script>
+// ── Steps data ───────────────────────────────────────────────────────────────
+const STEPS = [
+  {
+    title: "Open your Lovable app",
+    detail: "Go to <a href='https://lovable.dev' target='_blank'>lovable.dev</a> and open your project — "
+          + "the Ray-Ban Meta glasses dashboard. If you haven't built it yet, paste the contents of "
+          + "<code>lovable_prompt.md</code> from this repo into Lovable's chat to generate it automatically.",
+    speech: "Step one. Open your Lovable app at lovable dot dev. If you haven't built it yet, "
+          + "grab the lovable underscore prompt dot md file from this repo, copy the whole thing, "
+          + "and paste it into Lovable's chat box. Lovable will build the whole dashboard for you."
+  },
+  {
+    title: "Set BASE_URL to your laptop's IP",
+    detail: "In the generated code, find the <code>BASE_URL</code> constant and change "
+          + "<code>localhost</code> to your laptop's local IP address — for example "
+          + "<code>http://192.168.1.42:8765</code>. Your iPhone and laptop must be on the same Wi-Fi. "
+          + "Find your IP: on Mac/Linux run <code>ipconfig getifaddr en0</code> in Terminal, "
+          + "on Windows run <code>ipconfig</code>.",
+    speech: "Step two. This one's important — do it before you publish. In the generated code, "
+          + "find the BASE underscore URL constant and change localhost to your laptop's actual local IP address, "
+          + "like 192 dot 168 dot 1 dot 42, colon 8765. "
+          + "On a Mac, run ipconfig getifaddr en0 in Terminal to find your IP."
+  },
+  {
+    title: "Publish the app and copy the URL",
+    detail: "In Lovable, click <strong>Share → Publish</strong>. You get a live URL like "
+          + "<code>https://your-project.lovable.app</code>. Copy that URL — you'll need it in the next step.",
+    speech: "Step three. In Lovable, click Share, then Publish. You'll get a live URL that looks like "
+          + "your-project dot lovable dot app. Copy that URL. You need it in the next step."
+  },
+  {
+    title: "Go to MobaJump and upload your app",
+    detail: "Open <a href='https://mobajump.com' target='_blank'>mobajump.com</a> in your browser. "
+          + "Follow their steps to submit your Lovable app URL or upload the build files. "
+          + "MobaJump wraps your React/web app in a native iOS shell so it installs on your iPhone "
+          + "without Xcode.",
+    speech: "Step four. Open mobajump dot com. Follow their process — paste in your Lovable app URL "
+          + "or upload your build files. MobaJump wraps it in a native iOS app for you. "
+          + "No Xcode, no Mac required."
+  },
+  {
+    title: "Install the app on your iPhone",
+    detail: "MobaJump gives you an install link or a QR code. Open that link in Safari on your iPhone "
+          + "and follow the prompts to install. You may need to go to "
+          + "<strong>Settings → General → VPN &amp; Device Management</strong> and trust the developer profile "
+          + "before the app will open.",
+    speech: "Step five. MobaJump gives you an install link or a QR code. Open it in Safari on your iPhone. "
+          + "Follow the install prompts. If iOS blocks it, go to Settings, then General, "
+          + "then V P N and Device Management, and tap Trust on the developer profile."
+  },
+  {
+    title: "Start the metaglasses server on your laptop",
+    detail: "Open a terminal on your laptop and run:<br><code>python examples/mobile_bridge.py</code><br><br>"
+          + "You should see: <code>Bridge server listening on 0.0.0.0:8765</code>. "
+          + "Leave this terminal running — the server must stay on while you use the app.",
+    speech: "Step six. On your laptop, open a terminal and run: python examples slash mobile underscore bridge dot py. "
+          + "You should see: Bridge server listening on zero dot zero dot zero dot zero, colon 8765. "
+          + "Leave that terminal open. The server needs to keep running."
+  },
+  {
+    title: "Open the app on your iPhone",
+    detail: "Tap the newly installed app icon on your iPhone home screen. "
+          + "The dashboard should load and show a green <strong>Connected</strong> indicator. "
+          + "If it shows 'Server not reachable', double-check that your iPhone and laptop are on the same Wi-Fi "
+          + "and that <code>BASE_URL</code> has your laptop's IP, not localhost.",
+    speech: "Step seven. Open the new app on your iPhone. The dashboard should show a green Connected indicator. "
+          + "If it says server not reachable, make sure your phone and laptop are on the same Wi-Fi, "
+          + "and that BASE underscore URL has your laptop's real IP address."
+  },
+  {
+    title: "Pair your Ray-Ban Meta glasses",
+    detail: "Make sure your Ray-Ban Meta Smart Glasses are paired to your iPhone via the "
+          + "<strong>Meta View app</strong>. If you haven't done this yet, install Meta View from the App Store, "
+          + "open it, and follow the pairing steps. The glasses need to be connected to your phone.",
+    speech: "Step eight. Make sure your Ray-Ban Meta glasses are paired to your iPhone using the Meta View app. "
+          + "Install it from the App Store if you haven't already, open it, and follow the pairing steps."
+  },
+  {
+    title: "Say a voice command — you're live!",
+    detail: "Put on your glasses and say <em>\"Hey Meta, take a photo\"</em> or any supported command. "
+          + "Watch the dashboard update in real time. You'll see the activity log fill in and the "
+          + "status bar refresh. That's it — your Lovable app is controlling your glasses from your iPhone.",
+    speech: "Step nine — the last one. Put on your glasses. Say: Hey Meta, take a photo. "
+          + "Watch your iPhone dashboard update in real time. "
+          + "If the activity log lights up, you're live. You did it."
+  }
+];
+
+// ── State ────────────────────────────────────────────────────────────────────
+let current = 0;
+let muted    = false;
+
+// ── Elements ─────────────────────────────────────────────────────────────────
+const muteBtn      = document.getElementById("muteBtn");
+const prevBtn      = document.getElementById("prevBtn");
+const nextBtn      = document.getElementById("nextBtn");
+const readBtn      = document.getElementById("readBtn");
+const stepLabel    = document.getElementById("stepLabel");
+const stepTitle    = document.getElementById("stepTitle");
+const stepDetail   = document.getElementById("stepDetail");
+const stepsList    = document.getElementById("stepsList");
+const progressFill = document.getElementById("progressFill");
+const speakingDot  = document.getElementById("speakingDot");
+const doneBanner   = document.getElementById("doneBanner");
+const currentCard  = document.getElementById("currentCard");
+
+// ── Build steps list ─────────────────────────────────────────────────────────
+STEPS.forEach((s, i) => {
+  const li   = document.createElement("li");
+  li.id      = `step-li-${i}`;
+  li.dataset.index = i;
+  li.innerHTML = `<div class="num">${i + 1}</div>
+                  <div class="step-text">${s.title}</div>`;
+  li.addEventListener("click", () => goTo(i));
+  stepsList.appendChild(li);
+});
+
+// ── Voice ────────────────────────────────────────────────────────────────────
+function speak(text) {
+  if (muted || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utt    = new SpeechSynthesisUtterance(text);
+  utt.rate     = 0.95;
+  utt.pitch    = 0.85;
+  utt.volume   = 1;
+  utt.onstart  = () => speakingDot.classList.add("on");
+  utt.onend    = () => speakingDot.classList.remove("on");
+  utt.onerror  = () => speakingDot.classList.remove("on");
+  // prefer a robotic/local voice if available
+  const voices = window.speechSynthesis.getVoices();
+  const robot  = voices.find(v =>
+    /samantha|google|alex|fred|zira|david/i.test(v.name) && v.lang.startsWith("en")
+  ) || voices.find(v => v.lang.startsWith("en"));
+  if (robot) utt.voice = robot;
+  window.speechSynthesis.speak(utt);
+}
+
+// voices may load async
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => { /* pre-warm */ window.speechSynthesis.getVoices(); };
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function render(autoSpeak) {
+  const s     = STEPS[current];
+  const total = STEPS.length;
+
+  stepLabel.textContent  = `Step ${current + 1} of ${total}`;
+  stepTitle.textContent  = s.title;
+  stepDetail.innerHTML   = s.detail;
+
+  progressFill.style.width = `${((current + 1) / total) * 100}%`;
+
+  prevBtn.disabled = current === 0;
+  nextBtn.disabled = current === total - 1;
+
+  currentCard.style.display = "block";
+  doneBanner.style.display  = "none";
+
+  // update list highlights
+  document.querySelectorAll("#stepsList li").forEach((li, i) => {
+    li.classList.toggle("active", i === current);
+    li.classList.toggle("done",   i < current);
+  });
+
+  // scroll active step into view (list)
+  const activeLi = document.getElementById(`step-li-${current}`);
+  if (activeLi) activeLi.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  if (autoSpeak) speak(s.speech);
+}
+
+function showDone() {
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  speakingDot.classList.remove("on");
+  currentCard.style.display = "none";
+  doneBanner.style.display  = "block";
+  progressFill.style.width  = "100%";
+  nextBtn.disabled           = true;
+  document.querySelectorAll("#stepsList li").forEach(li => {
+    li.classList.remove("active");
+    li.classList.add("done");
+  });
+  if (!muted) speak("You're all set! Your Lovable app is running on your iPhone and talking to your glasses. Say a command and watch it go.");
+}
+
+function goTo(index, autoSpeak = false) {
+  current = Math.max(0, Math.min(STEPS.length - 1, index));
+  render(autoSpeak);
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+prevBtn.addEventListener("click", () => {
+  if (current > 0) goTo(current - 1, true);
+});
+
+nextBtn.addEventListener("click", () => {
+  if (current < STEPS.length - 1) {
+    goTo(current + 1, true);
+  } else {
+    showDone();
+  }
+});
+
+readBtn.addEventListener("click", () => {
+  if (!muted) speak(STEPS[current].speech);
+});
+
+muteBtn.addEventListener("click", () => {
+  muted = !muted;
+  if (muted) {
+    window.speechSynthesis && window.speechSynthesis.cancel();
+    speakingDot.classList.remove("on");
+    muteBtn.textContent = "🔇";
+    muteBtn.classList.add("muted");
+    muteBtn.title = "Unmute voice";
+  } else {
+    muteBtn.textContent = "🔊";
+    muteBtn.classList.remove("muted");
+    muteBtn.title = "Mute voice";
+  }
+});
+
+// Keyboard nav
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "ArrowDown") nextBtn.click();
+  if (e.key === "ArrowLeft"  || e.key === "ArrowUp")   prevBtn.click();
+  if (e.key === " ")                                    readBtn.click();
+  if (e.key === "m" || e.key === "M")                   muteBtn.click();
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+render(false); // don't auto-speak on page load — user starts when ready
+</script>
+</body>
+</html>

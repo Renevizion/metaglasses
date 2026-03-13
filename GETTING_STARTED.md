@@ -123,6 +123,11 @@ Or just open <http://localhost:8765/health> in your browser.
 
 ### 📱 Getting the Lovable app onto your iPhone (no Xcode, no MobaJump needed)
 
+> **🔊 Prefer to be talked through it?**
+> Open [`examples/voice_guide.html`](examples/voice_guide.html) in your browser.
+> It reads each step aloud using your browser's built-in voice.
+> Hit the 🔇 button any time to silence it.
+
 The Lovable.dev app is a **web app** — it runs in any browser, including
 Safari on your iPhone.  You do **not** need Xcode, a Mac, or MobaJump for
 this part.
@@ -299,6 +304,7 @@ CORS is open (`*`), so browser apps work without a proxy.
 
 Once everything is wired up end-to-end, explore:
 
+- [`examples/voice_guide.html`](examples/voice_guide.html) — open in any browser; a step-by-step voice guide (browser speech synthesis) that talks you through Lovable → MobaJump → iPhone → glasses. Hit 🔇 any time to mute it.
 - [`README.md`](README.md) — full SDK reference and built-in apps
 - [`examples/quick_apps.py`](examples/quick_apps.py) — spin up 5 custom
   voice-command apps in ~30 lines
